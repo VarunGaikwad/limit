@@ -1,15 +1,11 @@
 import React from "react";
 
-type UnauthCardProps = React.HTMLAttributes<HTMLDivElement> & {
+type AuthCardProps = React.HTMLAttributes<HTMLDivElement> & {
   title: string;
   subtitle?: string;
 };
 
-export default function UnauthCard({
-  title,
-  subtitle,
-  children,
-}: UnauthCardProps) {
+export default function AuthCard({ title, subtitle, children }: AuthCardProps) {
   return (
     <div className="flex-1 flex flex-col h-svh md:h-[85vh] md:max-h-212.5 w-full md:max-w-250 md:rounded-[2.5rem] md:shadow-2xl md:shadow-primary/10 overflow-hidden md:flex-row bg-primary">
       <div className="flex-[0.35] md:flex-[0.45] min-h-45 w-full h-full flex flex-col items-center justify-center p-8 text-white relative">

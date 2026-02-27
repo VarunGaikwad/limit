@@ -8,36 +8,52 @@ export default function SplashScreen({
 }: {
   children: React.ReactNode;
 }) {
-  const [loading, setLoading] = useState(false);
+  const [show, setShow] = useState(true);
+  const [isFading, setIsFading] = useState(false);
 
   useEffect(() => {
-    const navEntries = performance.getEntriesByType(
-      "navigation",
-    ) as PerformanceNavigationTiming[];
-    const isReload = navEntries[0]?.type === "reload";
+    // Show splash screen for 1.5s
+    const timer = setTimeout(() => {
+      setIsFading(true);
+      setTimeout(() => {
+        setShow(false);
+      }, 500); // fade duration
+    }, 1500);
 
-    if (isReload) {
-      setLoading(true);
-
-      const timer = setTimeout(() => {
-        setLoading(false);
-      }, 1000);
-
-      return () => clearTimeout(timer);
-    }
+    return () => clearTimeout(timer);
   }, []);
+
+  if (!show) return <>{children}</>;
 
   return (
     <>
-      {loading && (
-        <div className="fixed inset-0 bg-primary grid place-content-center z-50">
-          <div className="text-center space-y-2.5 animate-pulse">
-            <Landmark className="size-40 text-white" />
-            <span className="font-extrabold text-5xl text-white">LIMIT</span>
+      <div
+        className={`fixed inset-0 bg-primary grid place-content-center z-50 transition-opacity duration-500 ${
+          isFading ? "opacity-0" : "opacity-100"
+        }`}
+      >
+        <div className="text-center space-y-4">
+          <div className="relative">
+            <Landmark className="size-40 text-white animate-bounce-subtle mx-auto" />
+            <div className="absolute inset-0 bg-snow/20 blur-3xl rounded-full -z-10 animate-pulse" />
+          </div>
+          <div className="overflow-hidden">
+            <h1 className="font-black text-6xl text-white tracking-widest animate-slide-up">
+              LIMIT
+            </h1>
+          </div>
+          <div className="flex justify-center gap-1">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className="size-2 bg-snow/50 rounded-full animate-bounce"
+                style={{ animationDelay: `${i * 0.1}s` }}
+              />
+            ))}
           </div>
         </div>
-      )}
-      {children}
+      </div>
+      <div className={isFading ? "opacity-100" : "opacity-0"}>{children}</div>
     </>
   );
 }

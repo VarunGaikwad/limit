@@ -2,12 +2,65 @@
 
 @theme {
   --color-primary: var(--primaryColor);
+  --color-snow: var(--snowColor);
+  --radius-cxl: 4.5rem;
+  --animate-bounce-subtle: bounce-subtle 2s infinite ease-in-out;
+  --animate-slide-up: slide-up 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+
+  @keyframes bounce-subtle {
+    0%,
+    100% {
+      transform: translateY(-5%);
+    }
+    50% {
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slide-up {
+    from {
+      transform: translateY(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
 }
 
 :root {
   --primaryColor: #00d09e;
+  --snowColor: #f1fff3;
 }
 
 button {
   @apply cursor-pointer;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--primaryColor);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primaryColor);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--primaryColor) transparent;
+}
+
+.bg-dot-pattern {
+  background-image: radial-gradient(#00d09e 1px, transparent 1px);
+  background-size: 24px 24px;
 }

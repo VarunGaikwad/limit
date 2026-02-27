@@ -1,8 +1,10 @@
 import React from "react";
+import Link from "next/link";
 
 type HyperLinkProps = React.AnchorHTMLAttributes<HTMLAnchorElement> & {
   size?: "sm" | "md" | "lg";
   variant?: "primary" | "muted";
+  href: string;
 };
 
 export default function HyperLink({
@@ -12,6 +14,7 @@ export default function HyperLink({
   target,
   rel,
   children,
+  href,
   ...rest
 }: HyperLinkProps) {
   const sizes = {
@@ -22,22 +25,17 @@ export default function HyperLink({
 
   const variants = {
     primary:
-      "text-primary underline hover:no-underline focus:outline-none focus:ring-2 focus:ring-primary",
-    muted:
-      "text-gray-500 underline hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-400",
+      "text-primary underline hover:no-underline underline-offset-4 font-medium transition-all",
+    muted: "text-gray-500 hover:text-gray-800 transition-all font-medium",
   };
 
   const computedRel =
     target === "_blank" ? (rel ?? "noopener noreferrer") : rel;
 
   return (
-    <a
-      className={[
-        "select-none transition-colors",
-        sizes[size],
-        variants[variant],
-        className,
-      ]
+    <Link
+      href={href}
+      className={["select-none", sizes[size], variants[variant], className]
         .filter(Boolean)
         .join(" ")}
       target={target}
@@ -45,6 +43,6 @@ export default function HyperLink({
       {...rest}
     >
       {children}
-    </a>
+    </Link>
   );
 }

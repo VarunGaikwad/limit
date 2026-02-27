@@ -8,31 +8,61 @@ import {
 
 export default function SignUp() {
   return (
-    <Container className="bg-primary text-gray-800">
-      <UnauthCard title="Sign Up">
-        <InputField label="Full Name" type="text" autoComplete="off" />
-        <InputField label="Email" type="text" autoComplete="off" />
-        <InputField label="Mobile Number" type="tel" autoComplete="off" />
-        <InputField label="Date of Birth" type="date" autoComplete="off" />
-        <InputField label="Password" type="password" />
-        <InputField label="Confirm Password" type="password" />
-        <div className="space-y-1.5">
-          <div className="flex justify-center">
-            <span className="text-center">
-              By Continue you agree to{" "}
-              <span className="font-bold">Terms of Use</span> and{" "}
-              <span className="font-bold">Privacy Policy</span>
-            </span>
-          </div>
-          <div className="flex justify-center">
-            <Button size="sm" variant="primary" className="w-11/12">
-              Sign Up
-            </Button>
-          </div>
-          <div className="flex justify-center">
-            <span>
+    <Container className="bg-primary">
+      <UnauthCard
+        title="Create Account"
+        subtitle="Join Limit and start mastering your personal finances today."
+      >
+        <div className="space-y-4">
+          <InputField
+            label="Full Name"
+            type="text"
+            placeholder="John Doe"
+            autoComplete="off"
+          />
+          <InputField
+            label="Email Address"
+            type="email"
+            placeholder="john@example.com"
+            autoComplete="off"
+          />
+          <InputField label="Password" type="password" placeholder="••••••••" />
+          <InputField
+            label="Confirm Password"
+            type="password"
+            placeholder="••••••••"
+          />
+        </div>
+
+        <div className="space-y-6 mt-8">
+          <p className="text-center text-xs text-gray-500 leading-relaxed">
+            By continuing, you agree to our{" "}
+            <HyperLink
+              size="sm"
+              href="/terms"
+              className="inline decoration-gray-300"
+            >
+              Terms of Use
+            </HyperLink>{" "}
+            and{" "}
+            <HyperLink
+              size="sm"
+              href="/privacy"
+              className="inline decoration-gray-300"
+            >
+              Privacy Policy
+            </HyperLink>
+            .
+          </p>
+
+          <Button size="lg" variant="primary" className="w-full">
+            Create Account
+          </Button>
+
+          <div className="flex justify-center text-sm">
+            <span className="text-gray-600">
               Already have an account?{" "}
-              <HyperLink size="sm" href="/login">
+              <HyperLink href="/login" className="font-bold">
                 Log In
               </HyperLink>
             </span>
