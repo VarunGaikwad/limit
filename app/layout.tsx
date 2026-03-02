@@ -58,7 +58,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${poppins.className} antialiased text-sm`}>
+      <body className={`${poppins.className} antialiased text-xs`}>
         <SplashScreen>{children}</SplashScreen>
       </body>
     </html>
