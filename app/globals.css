@@ -39,7 +39,8 @@ button {
 }
 
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -47,7 +48,8 @@ button {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--primaryColor);
+  background: #e2e8f0;
+  border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -57,10 +59,38 @@ button {
 /* Firefox */
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--primaryColor) transparent;
+  scrollbar-color: #e2e8f0 transparent;
 }
 
 .bg-dot-pattern {
   background-image: radial-gradient(#00d09e 1px, transparent 1px);
   background-size: 24px 24px;
+}
+
+@keyframes bounce-x {
+  0%,
+  100% {
+    transform: translateY(-50%) translateX(0);
+  }
+  50% {
+    transform: translateY(-50%) translateX(-10px);
+  }
+}
+
+@keyframes bounce-x-reverse {
+  0%,
+  100% {
+    transform: translateY(-50%) translateX(0);
+  }
+  50% {
+    transform: translateY(-50%) translateX(10px);
+  }
+}
+
+.animate-bounce-x {
+  animation: bounce-x 1s infinite;
+}
+
+.animate-bounce-x-reverse {
+  animation: bounce-x-reverse 1s infinite;
 }

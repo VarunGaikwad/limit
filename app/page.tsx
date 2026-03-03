@@ -2,11 +2,32 @@
 import { Button, Container } from "@/components";
 import { Landmark, ArrowRight, ShieldCheck, Zap, PieChart } from "lucide-react";
 import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { useEffect, useState } from "react";
 
 export default function Home() {
-  const userId = true;
-  if (userId) {
-    redirect("/dashboard");
+  const [loading, setLoading] = useState(true);
+  const supabase = createClient();
+
+  useEffect(() => {
+    async function checkUser() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        redirect("/dashboard");
+      }
+      setLoading(false);
+    }
+    checkUser();
+  }, [supabase]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
   }
   return (
     <Container className="bg-snow">
@@ -66,7 +87,7 @@ export default function Home() {
             </div>
           </div>
         </div>
-        <div className="flex-1 relative w-full max-w-[500px] lg:max-w-none flex justify-center items-center animate-in fade-in zoom-in duration-1000 delay-300">
+        <div className="flex-1 relative w-full max-w-125 lg:max-w-none flex justify-center items-center animate-in fade-in zoom-in duration-1000 delay-300">
           <div className="relative">
             {/* Decorative circles */}
             <div className="absolute -top-20 -right-20 size-64 bg-primary/20 rounded-full blur-3xl animate-pulse" />

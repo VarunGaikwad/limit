@@ -2,7 +2,16 @@
 
 import { DashboardProvider } from "@/context";
 import { useDashboard } from "@/hook";
-import { Activity, Bell, HomeIcon, Tag, User, Wallet, PieChart } from "lucide-react";
+import {
+  Activity,
+  Bell,
+  HomeIcon,
+  Tag,
+  User,
+  Wallet,
+  PieChart,
+  Zap,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -10,6 +19,7 @@ const NAV_ITEMS = [
   { icon: HomeIcon, key: "home", link: "/dashboard" },
   { icon: Activity, key: "transaction", link: "/dashboard/transaction" },
   { icon: PieChart, key: "budget", link: "/dashboard/budget" },
+  { icon: Zap, key: "subscription", link: "/dashboard/subscription" },
   { icon: Wallet, key: "wallet", link: "/dashboard/wallet" },
   { icon: Tag, key: "tag", link: "/dashboard/tag" },
   { icon: User, key: "user", link: "/dashboard/user" },
@@ -20,7 +30,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   return (
-    <div className="flex h-[100dvh] w-full bg-slate-50 overflow-hidden font-sans antialiased text-slate-800">
+    <div className="flex h-dvh w-full bg-slate-50 overflow-hidden font-sans antialiased text-slate-800">
       {/* Desktop Left Sidebar Nav */}
       <aside className="hidden md:flex flex-col w-25 h-full bg-white border-r border-slate-200 py-8 items-center justify-between z-20 shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
         <div className="space-y-8 flex flex-col items-center">
@@ -30,7 +40,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
           </div>
 
           <nav className="flex flex-col gap-6 w-full px-4">
-            {NAV_ITEMS.slice(0, 5).map(({ icon: Icon, key, link }) => {
+            {NAV_ITEMS.slice(0, 6).map(({ icon: Icon, key, link }) => {
               const isActive = pathname === link;
               return (
                 <Link
@@ -57,10 +67,10 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
           </nav>
         </div>
 
-        <Link 
-          href={NAV_ITEMS[5].link}
+        <Link
+          href={NAV_ITEMS[6].link}
           className={
-            pathname === NAV_ITEMS[5].link
+            pathname === NAV_ITEMS[6].link
               ? "p-3.5 mt-auto bg-primary shadow-lg shadow-primary/30 rounded-2xl text-white transition-transform hover:scale-105 flex justify-center"
               : "p-3.5 mt-auto rounded-2xl text-slate-400 hover:text-primary transition-all hover:bg-slate-50 flex justify-center group"
           }
@@ -68,7 +78,11 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
           <User
             size={24}
             strokeWidth={2.5}
-            className={pathname !== NAV_ITEMS[5].link ? "group-hover:scale-110 transition-transform" : ""}
+            className={
+              pathname !== NAV_ITEMS[6].link
+                ? "group-hover:scale-110 transition-transform"
+                : ""
+            }
           />
         </Link>
       </aside>
@@ -79,7 +93,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
       >
         {/* Mobile Banner / Desktop Header Wrapper */}
-        <div className="bg-primary md:bg-transparent min-h-[260px] md:min-h-0 w-full pt-8 px-6 md:px-10 lg:px-12 md:py-10 text-white md:text-slate-900 pb-[120px] md:pb-0 relative">
+        <div className="bg-primary md:bg-transparent min-h-65 md:min-h-0 w-full pt-8 px-6 md:px-10 lg:px-12 md:py-10 text-white md:text-slate-900 pb-30 md:pb-0 relative">
           {/* Header Content */}
           <header className="flex justify-between items-start md:items-center max-w-7xl mx-auto relative z-10 box-border">
             <div className="space-y-1 md:space-y-2">
@@ -104,7 +118,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Mobile Overlapping Container & Main Dashboard Canvas */}
-        <div className="bg-[#F8FAFC] md:bg-transparent rounded-t-[2.5rem] md:rounded-t-none -mt-[100px] md:mt-0 p-6 sm:p-8 md:p-10 lg:p-12 relative min-h-[calc(100vh-200px)] md:min-h-0 z-10 box-border">
+        <div className="bg-[#F8FAFC] md:bg-transparent rounded-t-[2.5rem] md:rounded-t-none -mt-25 md:mt-0 p-6 sm:p-8 md:p-10 lg:p-12 relative min-h-[calc(100vh-200px)] md:min-h-0 z-10 box-border">
           {/* Mobile Top Content Injection */}
           <div className="md:hidden w-full mb-8">{topContent}</div>
 
@@ -117,8 +131,8 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
 
       {/* Mobile Bottom Nav Bar */}
       <div className="md:hidden fixed bottom-6 left-0 w-full flex justify-center px-4 pointer-events-none z-50">
-        <div className="bg-white/80 backdrop-blur-2xl shadow-[0_10px_40px_rgba(0,0,0,0.12)] rounded-[2rem] flex justify-between items-center px-6 py-3.5 w-full max-w-[420px] pointer-events-auto border border-white/50">
-          {NAV_ITEMS.slice(0, 5).map(({ icon: Icon, key, link }) => {
+        <div className="bg-white/80 backdrop-blur-2xl shadow-[0_10px_40px_rgba(0,0,0,0.12)] rounded-4xl flex justify-between items-center px-6 py-3.5 w-full max-w-105 pointer-events-auto border border-white/50">
+          {NAV_ITEMS.slice(0, 6).map(({ icon: Icon, key, link }) => {
             const isActive = pathname === link;
             return (
               <Link
