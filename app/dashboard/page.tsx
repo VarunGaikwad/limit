@@ -2,6 +2,7 @@
 
 import { useDashboard } from "@/hook";
 import { useEffect, useState } from "react";
+import useSWR from "swr";
 import { createClient } from "@/lib/supabase/client";
 import {
   ArrowDownLeft,
@@ -15,117 +16,117 @@ import {
   Tag,
 } from "lucide-react";
 import Link from "next/link";
+import { Card, Modal } from "@/components";
+import { motion } from "framer-motion";
+import { cn } from "@/lib/utils";
 
 export default function Dashboard() {
   const { setTitle, setSubtitle, setTopContent, currency } = useDashboard();
   const [currentMenu, setCurrentMenu] = useState("All");
-  const [userName, setUserName] = useState("User");
   const supabase = createClient();
 
-  const [transactions, setTransactions] = useState<any[]>([]);
-  const [budgets, setBudgets] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const filteredTransactions = transactions.filter((t) => {
-    if (currentMenu === "All") return true;
-    return t.type.toLowerCase() === currentMenu.toLowerCase();
+  // 1. Fetch User Data (Cached)
+  const { data: userData } = useSWR("user-profile", async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return null;
+    return {
+      name:
+        user.user_metadata?.full_name || user.email?.split("@")[0] || "User",
+      id: user.id,
+    };
   });
 
-  useEffect(() => {
-    async function fetchData() {
-      setLoading(true);
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-
-      if (user?.user_metadata?.full_name) {
-        setUserName(user.user_metadata.full_name);
-      } else if (user?.email) {
-        setUserName(user.email.split("@")[0]);
-      }
-
-      // 1. Fetch Transactions
-      const { data: transData } = await supabase
+  // 2. Fetch Transactions (Cached)
+  const { data: transactions = [], isLoading: transLoading } = useSWR(
+    "recent-transactions",
+    async () => {
+      const { data } = await supabase
         .from("transactions")
         .select("*")
         .order("date", { ascending: false })
         .limit(20);
+      return data || [];
+    },
+  );
 
-      if (transData) setTransactions(transData);
-
-      // 2. Fetch Budgets
+  // 3. Fetch Budgets (Cached & Enriched)
+  const { data: budgets = [], isLoading: budgetsLoading } = useSWR(
+    "dashboard-budgets",
+    async () => {
       const { data: budgetData } = await supabase
         .from("budgets")
         .select("*")
         .order("created_at", { ascending: false })
         .limit(4);
 
-      if (budgetData) {
-        // Enrich budgets with spent amount for current month
-        const now = new Date();
-        const startOfMonth = new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          1,
-        ).toISOString();
-        const { data: monthTrans } = await supabase
-          .from("transactions")
-          .select("*")
-          .gte("date", startOfMonth)
-          .eq("type", "expense");
+      if (!budgetData) return [];
 
-        const enriched = budgetData.map((b: any, idx: number) => {
-          const categories = b.categories || [];
-          const spent = (monthTrans || [])
-            .filter((t: any) => categories.includes(t.category))
-            .reduce((sum: number, t: any) => sum + Math.abs(t.amount), 0);
+      const now = new Date();
+      const startOfMonth = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        1,
+      ).toISOString();
+      const { data: monthTrans } = await supabase
+        .from("transactions")
+        .select("*")
+        .gte("date", startOfMonth)
+        .eq("type", "expense");
 
-          const colors = [
-            "bg-indigo-500",
-            "bg-blue-500",
-            "bg-orange-500",
-            "bg-emerald-500",
-          ];
-          return {
-            ...b,
-            spentAmount: spent,
-            fill: colors[idx % colors.length],
-          };
-        });
-        setBudgets(enriched);
-      }
-      setLoading(false);
-    }
-    fetchData();
-  }, [supabase]);
+      const colors = [
+        "bg-indigo-500",
+        "bg-blue-500",
+        "bg-orange-500",
+        "bg-emerald-500",
+      ];
+      return budgetData.map((b: any, idx: number) => {
+        const categoryIds = b.category_ids || [];
+        const spent = (monthTrans || [])
+          .filter((t: any) => categoryIds.includes(t.category_id))
+          .reduce((sum: number, t: any) => sum + Math.abs(t.amount), 0);
+        return {
+          ...b,
+          spentAmount: spent,
+          fill: colors[idx % colors.length],
+        };
+      });
+    },
+  );
+
+  const filteredTransactions = transactions.filter((t: any) => {
+    if (currentMenu === "All") return true;
+    return t.type.toLowerCase() === currentMenu.toLowerCase();
+  });
 
   useEffect(() => {
-    const hour = new Date().getHours();
+    const hours = new Date().getHours();
     const greeting =
-      hour < 12
+      hours < 12
         ? "Good Morning"
-        : hour < 18
+        : hours < 17
           ? "Good Afternoon"
           : "Good Evening";
 
-    setTitle(`Hi, ${userName}`);
-    setSubtitle(greeting);
+    setTitle(`${greeting}, ${userData?.name || "User"}!`);
+    setSubtitle("Here's what's happening with your money today.");
+
     setTopContent(
       <div
         className="flex md:grid md:grid-cols-2 lg:grid-cols-4 overflow-x-auto md:overflow-visible snap-x snap-mandatory gap-5 md:gap-6 pb-4 md:pb-0 [&::-webkit-scrollbar]:hidden pt-2"
         style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
       >
-        {budgets.map((budget) => {
+        {budgets.map((budget: any) => {
           const remaining = budget.amount - budget.spentAmount;
           const percentage = Math.min(
             (budget.spentAmount / budget.amount) * 100,
             100,
           );
           return (
-            <div
+            <Card
               key={budget.id}
-              className="w-[85%] md:w-full shrink-0 snap-center md:snap-none bg-white rounded-3xl p-6 space-y-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 transition-transform hover:-translate-y-1 duration-300 group"
+              className="w-[85%] md:w-full shrink-0 snap-center md:snap-none p-6 space-y-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100"
             >
               <div className="space-y-1">
                 <div className="font-semibold text-slate-500 text-sm tracking-wide uppercase">
@@ -143,24 +144,26 @@ export default function Dashboard() {
               <div className="space-y-3 pt-2">
                 <div className="relative">
                   <div className="h-3 w-full bg-slate-100 block rounded-full overflow-hidden shadow-inner">
-                    <div
-                      style={{ width: `${percentage}%` }}
-                      className={`h-full ${budget.fill} rounded-full relative overflow-hidden transition-all duration-1000 ease-out`}
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${percentage}%` }}
+                      transition={{ duration: 1.5, ease: "easeOut" }}
+                      className={`h-full ${budget.fill} rounded-full relative overflow-hidden`}
                     >
                       <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/30 to-transparent -translate-x-full animate-[shimmer_2s_infinite_ease-in-out]" />
-                    </div>
+                    </motion.div>
                   </div>
                 </div>
                 <div>
                   <div className="text-xs text-slate-500 font-medium inline-block bg-slate-50 px-2.5 py-1 rounded-md border border-slate-100">
-                    You've spent {percentage.toFixed(0)}% of your budget
+                    You&apos;ve spent {percentage.toFixed(0)}% of your budget
                   </div>
                 </div>
               </div>
-            </div>
+            </Card>
           );
         })}
-        {budgets.length === 0 && !loading && (
+        {budgets.length === 0 && !budgetsLoading && (
           <Link href="/dashboard/budget" className="col-span-full">
             <div className="bg-white/50 border-2 border-dashed border-slate-200 p-8 rounded-3xl flex flex-col items-center justify-center gap-3 hover:bg-white hover:border-primary/50 transition-all group">
               <Plus
@@ -179,9 +182,9 @@ export default function Dashboard() {
     setTitle,
     setSubtitle,
     setTopContent,
-    userName,
+    userData,
     budgets,
-    loading,
+    budgetsLoading,
     currency,
   ]);
 
@@ -207,8 +210,21 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4">
-        {loading ? (
+      <motion.div
+        initial="hidden"
+        animate="visible"
+        variants={{
+          hidden: { opacity: 0 },
+          visible: {
+            opacity: 1,
+            transition: {
+              staggerChildren: 0.1,
+            },
+          },
+        }}
+        className="grid grid-cols-1 gap-4"
+      >
+        {transLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           </div>
@@ -217,46 +233,53 @@ export default function Dashboard() {
             <p className="text-slate-400 font-bold">No transactions found</p>
           </div>
         ) : (
-          filteredTransactions.map((t) => (
-            <div
+          filteredTransactions.map((t: any) => (
+            <motion.div
+              variants={{
+                hidden: { opacity: 0, y: 10 },
+                visible: { opacity: 1, y: 0 },
+              }}
               key={t.id}
-              className="flex items-center justify-between bg-white p-4 sm:p-5 rounded-3xl shadow-[0_4px_20px_rgb(0,0,0,0.03)] border border-slate-100 hover:shadow-[0_8px_30_rgb(0,0,0,0.06)] hover:-translate-y-0.5 transition-all duration-300 group"
             >
-              <div className="flex items-center gap-4">
-                <div
-                  className={`p-3 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 ${
-                    t.type === "income"
-                      ? "bg-primary/10 text-primary"
-                      : "bg-slate-100 text-slate-500"
-                  }`}
-                >
-                  <Tag size={20} strokeWidth={2.5} />
+              <Card className="flex items-center justify-between p-4 sm:p-5">
+                <div className="flex items-center gap-4">
+                  <div
+                    className={cn(
+                      "p-3 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110",
+                      t.type === "income"
+                        ? "bg-primary/10 text-primary"
+                        : "bg-slate-100 text-slate-500",
+                    )}
+                  >
+                    <Tag size={20} strokeWidth={2.5} />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-800 text-base sm:text-lg">
+                      {t.title}
+                    </h4>
+                    <p className="text-xs sm:text-sm text-slate-500 font-medium">
+                      {t.category} • {new Date(t.date).toLocaleDateString()}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="font-bold text-slate-800 text-base sm:text-lg">
-                    {t.title}
-                  </h4>
-                  <p className="text-xs sm:text-sm text-slate-500 font-medium">
-                    {t.category} • {new Date(t.date).toLocaleDateString()}
-                  </p>
-                </div>
-              </div>
 
-              <div
-                className={`font-bold text-lg sm:text-xl tracking-tight ${
-                  t.type === "income" ? "text-primary" : "text-slate-800"
-                }`}
-              >
-                {t.type === "income" ? "+" : "-"}
-                {currency}
-                {Math.abs(t.amount).toLocaleString(undefined, {
-                  minimumFractionDigits: 2,
-                })}
-              </div>
-            </div>
+                <div
+                  className={cn(
+                    "font-bold text-lg sm:text-xl tracking-tight",
+                    t.type === "income" ? "text-primary" : "text-slate-800",
+                  )}
+                >
+                  {t.type === "income" ? "+" : "-"}
+                  {currency}
+                  {Math.abs(t.amount).toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                  })}
+                </div>
+              </Card>
+            </motion.div>
           ))
         )}
-      </div>
+      </motion.div>
 
       <Link
         href="/dashboard/transaction"

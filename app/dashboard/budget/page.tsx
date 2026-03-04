@@ -9,8 +9,6 @@ import {
   Coffee,
   Home as HomeIcon,
   ShoppingBag,
-  Zap,
-  Briefcase,
   PlusCircle,
   X,
   Check,
@@ -20,6 +18,30 @@ import {
 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
+import { Card, Modal } from "@/components";
+import { motion } from "framer-motion";
+import { cn } from "@/lib/utils";
+
+interface Category {
+  id: string;
+  name: string;
+}
+
+interface BudgetData {
+  id: string;
+  name: string;
+  amount: number;
+  category_ids: string[]; // Use ID array
+  categories: string[]; // Keep names for legacy/display
+  created_at: string;
+  user_id: string;
+}
+
+interface TransactionData {
+  id: string;
+  amount: number;
+  category_id: string;
+}
 
 export default function Budget() {
   const { setTitle, setSubtitle, setTopContent, currency } = useDashboard();
@@ -34,8 +56,8 @@ export default function Budget() {
   // Modal State
   const [budgetName, setBudgetName] = useState("");
   const [budgetAmount, setBudgetAmount] = useState("");
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [allCategories, setAllCategories] = useState<string[]>([]);
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
+  const [allCategories, setAllCategories] = useState<Category[]>([]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -47,12 +69,12 @@ export default function Budget() {
     // 1. Fetch Categories
     const { data: catData } = await supabase
       .from("categories")
-      .select("name")
+      .select("id, name")
       .eq("type", "expense") // Budgets are typically for expenses
       .order("name", { ascending: true });
 
     if (catData) {
-      setAllCategories(catData.map((c) => c.name));
+      setAllCategories(catData as Category[]);
     }
 
     // 2. Fetch Budgets
@@ -86,11 +108,14 @@ export default function Budget() {
 
     if (budgetData) {
       // 4. Calculate spent amount for each budget
-      const enrichedBudgets = budgetData.map((b) => {
-        const categories = b.categories || [];
-        const spent = (transData || [])
-          .filter((t) => categories.includes(t.category))
-          .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+      const enrichedBudgets = (budgetData as BudgetData[]).map((b) => {
+        const categoryIds = b.category_ids || [];
+        const spent = ((transData as TransactionData[]) || [])
+          .filter((t: TransactionData) => categoryIds.includes(t.category_id))
+          .reduce(
+            (sum: number, t: TransactionData) => sum + Math.abs(t.amount),
+            0,
+          );
 
         return {
           ...b,
@@ -139,11 +164,11 @@ export default function Budget() {
     if (budget) {
       setBudgetName(budget.name);
       setBudgetAmount(budget.totalAmount.toString());
-      setSelectedCategories([...budget.categories]);
+      setSelectedCategoryIds([...(budget.category_ids || [])]);
     } else {
       setBudgetName("");
       setBudgetAmount("");
-      setSelectedCategories([]);
+      setSelectedCategoryIds([]);
     }
     setIsModalOpen(true);
   };
@@ -154,7 +179,8 @@ export default function Budget() {
   };
 
   const handleSaveBudget = async () => {
-    if (!budgetName || !budgetAmount || selectedCategories.length === 0) return;
+    if (!budgetName || !budgetAmount || selectedCategoryIds.length === 0)
+      return;
     setIsSubmitting(true);
 
     const {
@@ -165,7 +191,10 @@ export default function Budget() {
     const budgetData = {
       name: budgetName,
       amount: parseFloat(budgetAmount),
-      categories: selectedCategories,
+      category_ids: selectedCategoryIds,
+      categories: allCategories
+        .filter((c) => selectedCategoryIds.includes(c.id))
+        .map((c) => c.name),
       user_id: user.id,
     };
 
@@ -201,9 +230,11 @@ export default function Budget() {
     }
   };
 
-  const toggleCategory = (cat: string) => {
-    setSelectedCategories((prev) =>
-      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat],
+  const toggleCategory = (catId: string) => {
+    setSelectedCategoryIds((prev) =>
+      prev.includes(catId)
+        ? prev.filter((id) => id !== catId)
+        : [...prev, catId],
     );
   };
 
@@ -257,7 +288,20 @@ export default function Budget() {
 
   return (
     <>
-      <div className="space-y-6 animate-in fade-in duration-500 pb-20">
+      <motion.div
+        initial="hidden"
+        animate="visible"
+        variants={{
+          hidden: { opacity: 0 },
+          visible: {
+            opacity: 1,
+            transition: {
+              staggerChildren: 0.1,
+            },
+          },
+        }}
+        className="space-y-6 pb-20"
+      >
         {/* Budgets Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           {budgets.map((budget) => {
@@ -271,11 +315,12 @@ export default function Budget() {
             const Icon = style.icon;
 
             return (
-              <div
+              <Card
                 key={budget.id}
-                className={`bg-white p-6 sm:p-7 rounded-4xl shadow-[0_4px_25px_rgb(0,0,0,0.03)] border transition-all duration-300 group flex flex-col gap-6 relative overflow-hidden ${
-                  isWarning ? "border-rose-200" : "border-slate-100"
-                }`}
+                className={cn(
+                  "flex flex-col gap-6",
+                  isWarning ? "border-rose-200" : "border-slate-100",
+                )}
               >
                 {/* Header */}
                 <div className="flex justify-between items-start z-10">
@@ -329,9 +374,11 @@ export default function Budget() {
                     </span>
                   </div>
                   <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-1000 ease-out ${isWarning ? "bg-rose-500" : style.fill}`}
-                      style={{ width: `${percentage}%` }}
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${percentage}%` }}
+                      transition={{ duration: 1.5, ease: "easeOut" }}
+                      className={`h-full rounded-full ${isWarning ? "bg-rose-500" : style.fill}`}
                     />
                   </div>
                 </div>
@@ -349,19 +396,19 @@ export default function Budget() {
                     ))}
                   </div>
                 </div>
-              </div>
+              </Card>
             );
           })}
 
           {/* Add Budget Card */}
-          <div
+          <Card
             onClick={() => handleOpenModal()}
-            className="border-2 border-dashed border-slate-200 bg-slate-50/50 hover:bg-white p-6 sm:p-8 rounded-4xl flex flex-col items-center justify-center gap-4 text-slate-400 hover:text-primary hover:border-primary/50 transition-all cursor-pointer group min-h-70"
+            className="border-2 border-dashed border-slate-200 bg-slate-50/50 hover:bg-white flex flex-col items-center justify-center gap-4 text-slate-400 group min-h-70"
           >
             <div className="p-4 rounded-[1.25rem] flex items-center justify-center bg-transparent group-hover:bg-primary/10 transition-colors">
               <PlusCircle
                 size={36}
-                className="group-hover:scale-110 transition-transform"
+                className="group-hover:scale-110 transition-transform text-slate-300 group-hover:text-primary"
                 strokeWidth={2}
               />
             </div>
@@ -373,127 +420,113 @@ export default function Budget() {
                 Group multiple categories under one limit
               </p>
             </div>
-          </div>
+          </Card>
         </div>
-      </div>
+      </motion.div>
 
-      {/* Add/Edit Budget Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center px-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-[2.5rem] w-full max-w-lg shadow-2xl relative animate-in zoom-in-95 fade-in duration-200 flex flex-col max-h-[90vh] overflow-hidden">
-            <button
-              onClick={closeModal}
-              className="absolute top-6 right-6 p-2 bg-slate-100/80 hover:bg-slate-200 text-slate-500 rounded-full transition-colors z-20"
-            >
-              <X size={20} />
-            </button>
+      <Modal
+        isOpen={isModalOpen}
+        onClose={closeModal}
+        title={editingBudget ? "Edit Budget" : "New Budget"}
+        description={
+          editingBudget
+            ? "Update your budget details and categories."
+            : "Group your categories under a single spending limit."
+        }
+      >
+        <div className="space-y-8">
+          <div className="space-y-5">
+            <div className="space-y-1.5">
+              <label className="text-sm font-bold text-slate-700 pl-1 uppercase tracking-wider">
+                Budget Name
+              </label>
+              <input
+                type="text"
+                value={budgetName}
+                onChange={(e) => setBudgetName(e.target.value)}
+                placeholder="e.g. Vacation Fund"
+                className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+              />
+            </div>
 
-            <div className="flex-1 overflow-y-auto p-6 sm:p-8 md:p-10 space-y-8">
-              <div className="space-y-2">
-                <h2 className="text-2xl font-bold text-slate-800 tracking-tight">
-                  {editingBudget ? "Edit Budget" : "New Budget"}
-                </h2>
-                <p className="text-slate-500 text-sm">
-                  {editingBudget
-                    ? "Update grouping and limits."
-                    : "Group transactions and set a spending limit."}
-                </p>
+            <div className="space-y-1.5">
+              <label className="text-sm font-bold text-slate-700 pl-1 uppercase tracking-wider">
+                Total Amount ({currency})
+              </label>
+              <input
+                type="number"
+                value={budgetAmount}
+                onChange={(e) => setBudgetAmount(e.target.value)}
+                placeholder="e.g. 500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+              />
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center justify-between pl-1">
+                <label className="text-sm font-bold text-slate-700 uppercase tracking-wider">
+                  Included Categories
+                </label>
+                <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded-md">
+                  {selectedCategoryIds.length} Selected
+                </span>
               </div>
 
-              <div className="space-y-5">
-                <div className="space-y-1.5">
-                  <label className="text-sm font-bold text-slate-700 pl-1 uppercase tracking-wider">
-                    Budget Name
-                  </label>
-                  <input
-                    type="text"
-                    value={budgetName}
-                    onChange={(e) => setBudgetName(e.target.value)}
-                    placeholder="e.g. Vacation Fund"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-sm font-bold text-slate-700 pl-1 uppercase tracking-wider">
-                    Total Amount ({currency})
-                  </label>
-                  <input
-                    type="number"
-                    value={budgetAmount}
-                    onChange={(e) => setBudgetAmount(e.target.value)}
-                    placeholder="e.g. 500"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
-                  />
-                </div>
-
-                <div className="space-y-3 pt-2">
-                  <div className="flex items-center justify-between pl-1">
-                    <label className="text-sm font-bold text-slate-700 uppercase tracking-wider">
-                      Included Categories
-                    </label>
-                    <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded-md">
-                      {selectedCategories.length} Selected
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    {allCategories.map((cat) => {
-                      const isSelected = selectedCategories.includes(cat);
-                      return (
-                        <div
-                          key={cat}
-                          onClick={() => toggleCategory(cat)}
-                          className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                            isSelected
-                              ? "border-primary bg-primary/5 text-primary"
-                              : "border-slate-100 bg-white text-slate-600 hover:border-slate-300"
-                          }`}
-                        >
-                          <div
-                            className={`flex items-center justify-center w-5 h-5 rounded-[0.4rem] transition-colors ${
-                              isSelected
-                                ? "bg-primary text-white"
-                                : "border-2 border-slate-300 bg-transparent"
-                            }`}
-                          >
-                            {isSelected && <Check size={12} strokeWidth={3} />}
-                          </div>
-                          <span className="text-sm font-bold truncate">
-                            {cat}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-slate-100">
-                <button
-                  onClick={handleSaveBudget}
-                  disabled={
-                    isSubmitting ||
-                    !budgetName ||
-                    !budgetAmount ||
-                    selectedCategories.length === 0
-                  }
-                  className="w-full bg-primary hover:bg-[#00d6a3] disabled:bg-slate-300 disabled:shadow-none text-white font-bold text-lg py-4 rounded-2xl shadow-[0_8px_20px_rgba(0,184,142,0.25)] hover:shadow-[0_12px_25px_rgba(0,184,142,0.35)] hover:-translate-y-1 transition-all duration-300 flex justify-center items-center gap-2"
-                >
-                  {isSubmitting ? (
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                  ) : (
-                    <>
-                      <Target size={20} strokeWidth={2.5} />
-                      {editingBudget ? "Save Changes" : "Create Budget"}
-                    </>
-                  )}
-                </button>
+              <div className="grid grid-cols-2 gap-2">
+                {allCategories.map((cat) => {
+                  const isSelected = selectedCategoryIds.includes(cat.id);
+                  return (
+                    <div
+                      key={cat.id}
+                      onClick={() => toggleCategory(cat.id)}
+                      className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                        isSelected
+                          ? "border-primary bg-primary/5 text-primary"
+                          : "border-slate-100 bg-white text-slate-600 hover:border-slate-300"
+                      }`}
+                    >
+                      <div
+                        className={`flex items-center justify-center w-5 h-5 rounded-[0.4rem] transition-colors ${
+                          isSelected
+                            ? "bg-primary text-white"
+                            : "border-2 border-slate-300 bg-transparent"
+                        }`}
+                      >
+                        {isSelected && <Check size={12} strokeWidth={3} />}
+                      </div>
+                      <span className="text-sm font-bold truncate">
+                        {cat.name}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
+
+          <div className="pt-4 border-t border-slate-100">
+            <button
+              onClick={handleSaveBudget}
+              disabled={
+                isSubmitting ||
+                !budgetName ||
+                !budgetAmount ||
+                selectedCategoryIds.length === 0
+              }
+              className="w-full bg-primary hover:bg-[#00d6a3] disabled:bg-slate-300 disabled:shadow-none text-white font-bold text-lg py-4 rounded-2xl shadow-[0_8px_20px_rgba(0,184,142,0.25)] hover:shadow-[0_12px_25px_rgba(0,184,142,0.35)] hover:-translate-y-1 transition-all duration-300 flex justify-center items-center gap-2"
+            >
+              {isSubmitting ? (
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+              ) : (
+                <>
+                  <Target size={20} strokeWidth={2.5} />
+                  {editingBudget ? "Save Changes" : "Create Budget"}
+                </>
+              )}
+            </button>
+          </div>
         </div>
-      )}
+      </Modal>
     </>
   );
 }

@@ -11,6 +11,7 @@ import {
   Wallet,
   PieChart,
   Zap,
+  BarChart3,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -19,6 +20,7 @@ const NAV_ITEMS = [
   { icon: HomeIcon, key: "home", link: "/dashboard" },
   { icon: Activity, key: "transaction", link: "/dashboard/transaction" },
   { icon: PieChart, key: "budget", link: "/dashboard/budget" },
+  { icon: BarChart3, key: "analytics", link: "/dashboard/analytics" },
   { icon: Zap, key: "subscription", link: "/dashboard/subscription" },
   { icon: Wallet, key: "wallet", link: "/dashboard/wallet" },
   { icon: Tag, key: "tag", link: "/dashboard/tag" },
@@ -40,7 +42,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
           </div>
 
           <nav className="flex flex-col gap-6 w-full px-4">
-            {NAV_ITEMS.slice(0, 6).map(({ icon: Icon, key, link }) => {
+            {NAV_ITEMS.slice(0, 7).map(({ icon: Icon, key, link }) => {
               const isActive = pathname === link;
               return (
                 <Link
@@ -68,9 +70,9 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         </div>
 
         <Link
-          href={NAV_ITEMS[6].link}
+          href={NAV_ITEMS[7].link}
           className={
-            pathname === NAV_ITEMS[6].link
+            pathname === NAV_ITEMS[7].link
               ? "p-3.5 mt-auto bg-primary shadow-lg shadow-primary/30 rounded-2xl text-white transition-transform hover:scale-105 flex justify-center"
               : "p-3.5 mt-auto rounded-2xl text-slate-400 hover:text-primary transition-all hover:bg-slate-50 flex justify-center group"
           }
@@ -79,7 +81,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
             size={24}
             strokeWidth={2.5}
             className={
-              pathname !== NAV_ITEMS[6].link
+              pathname !== NAV_ITEMS[7].link
                 ? "group-hover:scale-110 transition-transform"
                 : ""
             }

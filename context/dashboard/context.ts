@@ -1,3 +1,5 @@
+"use client";
+
 import { DashboardContextType } from "@/interface";
 import { createContext } from "react";
 

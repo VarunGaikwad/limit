@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
 import "./globals.css";
 import { SplashScreen } from "@/components";
+import { QueryProvider } from "@/context";
 
 const poppins = Poppins({
   weight: ["100", "200", "300", "400", "500", "600", "700", "800", "900"],
@@ -21,6 +22,13 @@ export const metadata: Metadata = {
       url: "https://portfolio-drab-nine-70.vercel.app",
     },
   ],
+  manifest: "/manifest.json",
+  themeColor: "#00d09e",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Limit",
+  },
   keywords: [
     "budget tracker app",
     "expense tracking",
@@ -58,8 +66,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <link rel="apple-touch-icon" href="/icon.png" />
+      </head>
       <body className={`${poppins.className} antialiased text-xs`}>
-        <SplashScreen>{children}</SplashScreen>
+        <QueryProvider>
+          <SplashScreen>{children}</SplashScreen>
+        </QueryProvider>
       </body>
     </html>
   );

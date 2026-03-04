@@ -2,6 +2,7 @@
 
 import { useDashboard } from "@/hook";
 import { useEffect, useState } from "react";
+import useSWR, { useSWRConfig } from "swr";
 import {
   Plus,
   Landmark,
@@ -10,38 +11,40 @@ import {
   WalletIcon,
   Trash2,
   Star,
+  CheckCircle,
+  Edit2,
 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
+import { Card, Modal } from "@/components";
+import { motion, AnimatePresence } from "framer-motion";
+import { cn } from "@/lib/utils";
 
 export default function Wallet() {
   const { setTitle, setSubtitle, setTopContent, currency } = useDashboard();
+  const { mutate: globalMutate } = useSWRConfig();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [wallets, setWallets] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [editingWallet, setEditingWallet] = useState<any>(null);
   const supabase = createClient();
 
-  const fetchWallets = async () => {
-    setLoading(true);
+  // Unified fetcher for Wallets using SWR
+  const {
+    data: wallets = [],
+    error: fetchError,
+    isLoading,
+    mutate,
+  } = useSWR("user-wallets", async () => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (user) {
-      const { data, error } = await supabase
-        .from("wallets")
-        .select("*")
-        .order("created_at", { ascending: true });
-
-      if (!error && data) {
-        setWallets(data);
-      }
-    }
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    fetchWallets();
-  }, []);
+    if (!user) return [];
+    const { data, error } = await supabase
+      .from("wallets")
+      .select("*")
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+    return data || [];
+  });
 
   useEffect(() => {
     setTitle("My Wallet");
@@ -51,14 +54,20 @@ export default function Wallet() {
 
     setTopContent(
       <div className="w-full relative overflow-hidden mt-4 md:mt-2">
-        <div
+        <motion.div
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
           className="flex gap-4 md:gap-6 overflow-x-auto pb-6 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden"
           style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
         >
-          {displayWallets.map((wallet) => (
-            <div
+          {displayWallets.map((wallet: any) => (
+            <motion.div
+              whileHover={{ scale: 1.02 }}
               key={wallet.id}
-              className={`shrink-0 snap-center w-[85%] sm:w-85 h-50 rounded-4xl p-6 xl:p-8 text-white flex flex-col justify-between relative overflow-hidden shadow-[0_12px_40px_rgba(0,0,0,0.12)] bg-linear-to-br ${wallet.gradient || "from-slate-900 to-slate-800"} transition-transform hover:-translate-y-1 duration-300 group`}
+              className={cn(
+                "shrink-0 snap-center w-[85%] sm:w-85 h-50 rounded-4xl p-6 xl:p-8 text-white flex flex-col justify-between relative overflow-hidden shadow-[0_12px_40px_rgba(0,0,0,0.12)] bg-linear-to-br transition-all duration-300 group cursor-default",
+                wallet.gradient || "from-slate-900 to-slate-800",
+              )}
             >
               <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -translate-y-10 translate-x-10 group-hover:bg-white/20 transition-colors duration-500" />
               <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full blur-xl translate-y-8 -translate-x-8" />
@@ -87,10 +96,11 @@ export default function Wallet() {
                   {wallet.name}
                 </p>
               </div>
-            </div>
+            </motion.div>
           ))}
 
-          <div
+          <motion.div
+            whileHover={{ scale: 1.02 }}
             onClick={() => setIsModalOpen(true)}
             className="shrink-0 snap-center w-[85%] sm:w-85 h-50 rounded-4xl border-2 border-dashed border-slate-300 bg-white/50 flex flex-col items-center justify-center text-slate-400 hover:text-primary hover:border-primary hover:bg-white transition-all cursor-pointer group"
           >
@@ -98,8 +108,8 @@ export default function Wallet() {
               <Plus size={28} />
             </div>
             <p className="font-semibold">Add New Account</p>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       </div>,
     );
   }, [setTitle, setSubtitle, setTopContent, wallets, currency]);
@@ -113,14 +123,13 @@ export default function Wallet() {
       .update({ is_primary: false })
       .eq("user_id", (await supabase.auth.getUser()).data.user?.id);
 
-    // Then set the selected one as primary
     const { error } = await supabase
       .from("wallets")
       .update({ is_primary: true })
       .eq("id", id);
 
     if (!error) {
-      fetchWallets();
+      mutate(); // Refresh local SWR cache
     }
   }
 
@@ -135,10 +144,31 @@ export default function Wallet() {
 
     const { error } = await supabase.from("wallets").delete().eq("id", id);
 
-    if (!error) {
-      fetchWallets();
+    if (error) {
+      alert(
+        "Cannot delete account. Make sure it has no active transactions or recurring bills.",
+      );
+      console.error("Delete error:", error);
+    } else {
+      mutate();
     }
   }
+
+  const handleOpenModal = (wallet: any = null) => {
+    setEditingWallet(wallet);
+    if (wallet) {
+      setName(wallet.name);
+      setType(wallet.type);
+      setBalance(wallet.balance.toString());
+      setIsPrimary(wallet.is_primary);
+    } else {
+      setName("");
+      setType("Personal");
+      setBalance("");
+      setIsPrimary(false);
+    }
+    setIsModalOpen(true);
+  };
 
   const [name, setName] = useState("");
   const [type, setType] = useState("Personal");
@@ -147,6 +177,7 @@ export default function Wallet() {
   const [topUpAmount, setTopUpAmount] = useState("");
   const [selectedWalletId, setSelectedWalletId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPrimary, setIsPrimary] = useState(false);
 
   async function handleCreateAccount() {
     if (!name || !balance) return;
@@ -156,18 +187,55 @@ export default function Wallet() {
       data: { user },
     } = await supabase.auth.getUser();
     if (user) {
-      const { error } = await supabase.from("wallets").insert({
-        name,
-        type,
-        balance: parseFloat(balance),
-        user_id: user.id,
-      });
+      // If setting this one as primary, unset others first
+      if (isPrimary) {
+        await supabase
+          .from("wallets")
+          .update({ is_primary: false })
+          .eq("user_id", user.id);
+      }
+
+      // If setting this one as primary, unset others first
+      if (isPrimary) {
+        await supabase
+          .from("wallets")
+          .update({ is_primary: false })
+          .eq("user_id", user.id);
+      }
+
+      let error;
+      if (editingWallet) {
+        const { error: updateError } = await supabase
+          .from("wallets")
+          .update({
+            name,
+            type,
+            balance: parseFloat(balance),
+            is_primary: isPrimary,
+          })
+          .eq("id", editingWallet.id);
+        error = updateError;
+      } else {
+        const { error: insertError } = await supabase.from("wallets").insert({
+          name,
+          type,
+          balance: parseFloat(balance),
+          user_id: user.id,
+          is_primary: isPrimary || wallets.length === 0,
+        });
+        error = insertError;
+      }
 
       if (!error) {
         setIsModalOpen(false);
+        setEditingWallet(null);
         setName("");
         setBalance("");
-        fetchWallets();
+        setIsPrimary(false);
+        mutate();
+      } else {
+        console.error("Save error:", error);
+        alert("Error saving account.");
       }
     }
     setIsSubmitting(false);
@@ -177,7 +245,7 @@ export default function Wallet() {
     if (!selectedWalletId || !topUpAmount) return;
     setIsSubmitting(true);
 
-    const wallet = wallets.find((w) => w.id === selectedWalletId);
+    const wallet = wallets.find((w: any) => w.id === selectedWalletId);
     if (wallet) {
       const newBalance = wallet.balance + parseFloat(topUpAmount);
       const { error } = await supabase
@@ -189,7 +257,7 @@ export default function Wallet() {
         setIsTopUpOpen(false);
         setTopUpAmount("");
         setSelectedWalletId("");
-        fetchWallets();
+        mutate();
       }
     }
     setIsSubmitting(false);
@@ -207,7 +275,7 @@ export default function Wallet() {
             <div onClick={() => setIsTopUpOpen(true)}>
               <ActionBtn icon={Plus} label="Top Up" />
             </div>
-            <div onClick={() => setIsModalOpen(true)}>
+            <div onClick={() => handleOpenModal()}>
               <ActionBtn icon={WalletIcon} label="Add Account" />
             </div>
           </div>
@@ -224,239 +292,261 @@ export default function Wallet() {
             </button>
           </div>
 
-          <div className="space-y-3">
-            {wallets.length === 0 && !loading && (
+          <motion.div
+            initial="hidden"
+            animate="visible"
+            variants={{
+              hidden: { opacity: 0 },
+              visible: {
+                opacity: 1,
+                transition: {
+                  staggerChildren: 0.1,
+                },
+              },
+            }}
+            className="space-y-3"
+          >
+            {wallets.length === 0 && !isLoading && (
               <div className="text-center py-12 bg-white rounded-3xl border border-dashed border-slate-200">
                 <p className="text-slate-400 font-medium">
                   No accounts found. Add one to get started!
                 </p>
               </div>
             )}
-            {wallets.map((acc) => (
-              <div
+            {wallets.map((acc: any) => (
+              <motion.div
+                variants={{
+                  hidden: { opacity: 0, y: 10 },
+                  visible: { opacity: 1, y: 0 },
+                }}
                 key={acc.id}
-                className={`flex items-center justify-between bg-white p-4 sm:p-5 rounded-3xl shadow-[0_4px_20px_rgb(0,0,0,0.03)] border transition-all duration-300 group cursor-pointer ${acc.is_primary ? "border-primary shadow-[0_8px_30px_rgba(0,208,158,0.12)]" : "border-slate-100 hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:-translate-y-0.5"}`}
               >
-                <div className="flex items-center gap-4">
-                  <div
-                    className={`p-3.5 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 border ${acc.is_primary ? "bg-primary/10 text-primary border-primary/20" : "bg-slate-50 text-slate-600 border-slate-100"}`}
-                  >
-                    <Landmark size={22} strokeWidth={2.5} />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-slate-800 text-base sm:text-lg">
-                        {acc.name}
-                      </h4>
-                      {acc.is_primary && (
-                        <span className="bg-primary/10 text-primary text-[10px] font-black uppercase tracking-tighter px-2 py-0.5 rounded-md">
-                          Primary
-                        </span>
+                <Card
+                  className={cn(
+                    "flex items-center justify-between p-4 sm:p-5 transition-all duration-300",
+                    acc.is_primary &&
+                      "border-primary shadow-[0_8px_30px_rgba(0,208,158,0.12)]",
+                  )}
+                >
+                  <div className="flex items-center gap-4">
+                    <div
+                      className={cn(
+                        "p-3.5 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 border",
+                        acc.is_primary
+                          ? "bg-primary/10 text-primary border-primary/20"
+                          : "bg-slate-50 text-slate-600 border-slate-100",
                       )}
-                    </div>
-                    <p className="text-xs sm:text-sm text-slate-500 font-medium uppercase tracking-wider">
-                      {acc.type}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="font-bold text-lg sm:text-xl tracking-tight text-slate-800 text-right">
-                    {currency}
-                    {acc.balance.toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                    })}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {!acc.is_primary && (
-                      <button
-                        onClick={(e) => handleSetPrimary(acc.id, e)}
-                        className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded-xl transition-all md:opacity-0 group-hover:opacity-100"
-                        title="Set as Primary"
-                      >
-                        <Star size={18} strokeWidth={2.5} />
-                      </button>
-                    )}
-                    <button
-                      onClick={(e) => handleDeleteAccount(acc.id, e)}
-                      className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all md:opacity-0 group-hover:opacity-100"
                     >
-                      <Trash2 size={18} strokeWidth={2.5} />
-                    </button>
+                      <Landmark size={22} strokeWidth={2.5} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-slate-800 text-base sm:text-lg">
+                          {acc.name}
+                        </h4>
+                        {acc.is_primary && (
+                          <span className="bg-primary/10 text-primary text-[10px] font-black uppercase tracking-tighter px-2 py-0.5 rounded-md">
+                            Primary
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs sm:text-sm text-slate-500 font-medium uppercase tracking-wider">
+                        {acc.type}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              </div>
+                  <div className="flex items-center gap-4">
+                    <div className="font-bold text-lg sm:text-xl tracking-tight text-slate-800 text-right">
+                      {currency}
+                      {acc.balance.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                      })}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenModal(acc);
+                        }}
+                        className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-xl transition-all"
+                        title="Edit Account"
+                      >
+                        <Edit2 size={18} strokeWidth={2.5} />
+                      </button>
+                      {!acc.is_primary && (
+                        <button
+                          onClick={(e) => handleSetPrimary(acc.id, e)}
+                          className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded-xl transition-all"
+                          title="Set as Primary"
+                        >
+                          <Star size={18} strokeWidth={2.5} />
+                        </button>
+                      )}
+                      <button
+                        onClick={(e) => handleDeleteAccount(acc.id, e)}
+                        className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                        title="Delete Account"
+                      >
+                        <Trash2 size={18} strokeWidth={2.5} />
+                      </button>
+                    </div>
+                  </div>
+                </Card>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         </section>
       </div>
 
       {/* Add Account Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center px-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-[2.5rem] p-6 sm:p-10 w-full max-w-lg shadow-2xl relative animate-in zoom-in-95 fade-in duration-200 flex flex-col max-h-[90vh] overflow-hidden">
-            <button
-              onClick={() => setIsModalOpen(false)}
-              className="absolute top-6 right-6 p-2 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-full transition-colors z-20"
-            >
-              <X size={20} />
-            </button>
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title={editingWallet ? "Edit Account" : "Add New Account"}
+        description={
+          editingWallet
+            ? "Update your account details."
+            : "Create a new wallet to separate your funds."
+        }
+      >
+        <div className="space-y-6">
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-bold text-slate-700 pl-1 uppercase tracking-wider">
+                Account Name
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Vacation Fund"
+                className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all font-medium"
+              />
+            </div>
 
-            <div className="overflow-y-auto pr-2 space-y-6">
-              <div className="space-y-2">
-                <h2 className="text-2xl font-bold text-slate-800 tracking-tight">
-                  Add New Account
-                </h2>
-                <p className="text-slate-500 text-sm">
-                  Create a new wallet to separate your funds.
-                </p>
-              </div>
-
-              <div className="space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-sm font-semibold text-slate-600 pl-1">
-                    Account Name
-                  </label>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Vacation Fund"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all font-medium"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-sm font-semibold text-slate-600 pl-1">
-                    Account Type
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={type}
-                      onChange={(e) => setType(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all appearance-none cursor-pointer font-medium"
-                    >
-                      <option value="Personal">Personal Account</option>
-                      <option value="Working">Working / Business</option>
-                      <option value="Savings">Savings / Investment</option>
-                    </select>
-                    <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                      <Plus size={16} className="rotate-45" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-sm font-semibold text-slate-600 pl-1">
-                    Initial Balance ({currency})
-                  </label>
-                  <input
-                    type="number"
-                    value={balance}
-                    onChange={(e) => setBalance(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all font-mono text-lg"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-2">
-                <button
-                  onClick={handleCreateAccount}
-                  disabled={isSubmitting || !name || !balance}
-                  className="w-full bg-primary hover:bg-[#00d6a3] disabled:bg-slate-300 text-white font-bold text-lg py-4 rounded-2xl shadow-[0_8px_20px_rgba(0,184,142,0.25)] hover:shadow-[0_12px_25px_rgba(0,184,142,0.35)] hover:-translate-y-1 transition-all duration-300 flex justify-center items-center gap-2"
+            <div className="space-y-1.5">
+              <label className="text-sm font-bold text-slate-700 pl-1 uppercase tracking-wider">
+                Account Type
+              </label>
+              <div className="relative">
+                <select
+                  value={type}
+                  onChange={(e) => setType(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all appearance-none cursor-pointer font-medium"
                 >
-                  {isSubmitting ? (
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                  ) : (
-                    "Create Account"
-                  )}
-                </button>
+                  <option value="Personal">Personal Account</option>
+                  <option value="Working">Working / Business</option>
+                  <option value="Savings">Savings / Investment</option>
+                </select>
+                <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                  <Plus size={16} className="rotate-45" />
+                </div>
               </div>
             </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-bold text-slate-700 pl-1 uppercase tracking-wider">
+                {editingWallet ? "Current Balance" : "Initial Balance"} (
+                {currency})
+              </label>
+              <input
+                type="number"
+                value={balance}
+                onChange={(e) => setBalance(e.target.value)}
+                placeholder="0.00"
+                className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all font-mono text-lg"
+              />
+            </div>
+          </div>
+
+          <div className="pt-2">
+            <button
+              onClick={handleCreateAccount}
+              disabled={isSubmitting || !name || !balance}
+              className="w-full bg-primary hover:bg-[#00d6a3] disabled:bg-slate-300 text-white font-bold text-lg py-4 rounded-2xl shadow-[0_8px_20px_rgba(0,184,142,0.25)] hover:shadow-[0_12px_25px_rgba(0,184,142,0.35)] hover:-translate-y-1 transition-all duration-300 flex justify-center items-center gap-2"
+            >
+              {isSubmitting ? (
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+              ) : (
+                <>
+                  <CheckCircle size={20} strokeWidth={2.5} />
+                  {editingWallet ? "Save Changes" : "Create Account"}
+                </>
+              )}
+            </button>
           </div>
         </div>
-      )}
+      </Modal>
+
       {/* Top Up Modal */}
-      {isTopUpOpen && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center px-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-[2.5rem] p-6 sm:p-10 w-full max-w-lg shadow-2xl relative animate-in zoom-in-95 fade-in duration-200 flex flex-col max-h-[90vh] overflow-hidden">
-            <button
-              onClick={() => {
-                setIsTopUpOpen(false);
-                setTopUpAmount("");
-                setSelectedWalletId("");
-              }}
-              className="absolute top-6 right-6 p-2 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-full transition-colors z-20"
-            >
-              <X size={20} />
-            </button>
-
-            <div className="overflow-y-auto pr-2 space-y-6">
-              <div className="space-y-2">
-                <h2 className="text-2xl font-bold text-slate-800 tracking-tight">
-                  Top Up Wallet
-                </h2>
-                <p className="text-slate-500 text-sm">
-                  Add funds to one of your accounts.
-                </p>
-              </div>
-
-              <div className="space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-sm font-semibold text-slate-600 pl-1">
-                    Select Account
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={selectedWalletId}
-                      onChange={(e) => setSelectedWalletId(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all appearance-none cursor-pointer font-medium"
-                    >
-                      <option value="">Choose an account...</option>
-                      {wallets.map((w) => (
-                        <option key={w.id} value={w.id}>
-                          {w.name} ({currency}
-                          {w.balance.toLocaleString()})
-                        </option>
-                      ))}
-                    </select>
-                    <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                      <Landmark size={16} />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-sm font-semibold text-slate-600 pl-1">
-                    Amount to Add ({currency})
-                  </label>
-                  <input
-                    type="number"
-                    value={topUpAmount}
-                    onChange={(e) => setTopUpAmount(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all font-mono text-lg"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-2">
-                <button
-                  onClick={handleTopUp}
-                  disabled={isSubmitting || !selectedWalletId || !topUpAmount}
-                  className="w-full bg-primary hover:bg-[#00d6a3] disabled:bg-slate-300 text-white font-bold text-lg py-4 rounded-2xl shadow-[0_8px_20px_rgba(0,184,142,0.25)] hover:shadow-[0_12px_25px_rgba(0,184,142,0.35)] hover:-translate-y-1 transition-all duration-300 flex justify-center items-center gap-2"
+      <Modal
+        isOpen={isTopUpOpen}
+        onClose={() => {
+          setIsTopUpOpen(false);
+          setTopUpAmount("");
+          setSelectedWalletId("");
+        }}
+        title="Top Up Wallet"
+        description="Add funds to one of your accounts."
+      >
+        <div className="space-y-6">
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-bold text-slate-700 pl-1 uppercase tracking-wider">
+                Select Account
+              </label>
+              <div className="relative">
+                <select
+                  value={selectedWalletId}
+                  onChange={(e) => setSelectedWalletId(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all appearance-none cursor-pointer font-medium"
                 >
-                  {isSubmitting ? (
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                  ) : (
-                    "Confirm Top Up"
-                  )}
-                </button>
+                  <option value="">Choose an account...</option>
+                  {wallets.map((wallet: any) => (
+                    <option key={wallet.id} value={wallet.id}>
+                      {wallet.name} ({currency}
+                      {wallet.balance.toLocaleString()})
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                  <Landmark size={16} />
+                </div>
               </div>
             </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-bold text-slate-700 pl-1 uppercase tracking-wider">
+                Amount to Add ({currency})
+              </label>
+              <input
+                type="number"
+                value={topUpAmount}
+                onChange={(e) => setTopUpAmount(e.target.value)}
+                placeholder="0.00"
+                className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all font-mono text-lg"
+              />
+            </div>
+          </div>
+
+          <div className="pt-2">
+            <button
+              onClick={handleTopUp}
+              disabled={isSubmitting || !selectedWalletId || !topUpAmount}
+              className="w-full bg-primary hover:bg-[#00d6a3] disabled:bg-slate-300 text-white font-bold text-lg py-4 rounded-2xl shadow-[0_8px_20px_rgba(0,184,142,0.25)] hover:shadow-[0_12px_25px_rgba(0,184,142,0.35)] hover:-translate-y-1 transition-all duration-300 flex justify-center items-center gap-2"
+            >
+              {isSubmitting ? (
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+              ) : (
+                <>
+                  <CheckCircle size={20} strokeWidth={2.5} />
+                  Confirm Top Up
+                </>
+              )}
+            </button>
           </div>
         </div>
-      )}
+      </Modal>
     </>
   );
 }

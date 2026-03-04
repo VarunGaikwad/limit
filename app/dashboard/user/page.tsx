@@ -14,6 +14,9 @@ import {
   ChevronRight,
   UserCheck,
 } from "lucide-react";
+import { Card } from "@/components";
+import { motion } from "framer-motion";
+import { cn } from "@/lib/utils";
 
 export default function UserProfile() {
   const { setTitle, setSubtitle, setTopContent, currency, setCurrency } =
@@ -81,11 +84,12 @@ export default function UserProfile() {
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
       {/* User Header Card */}
-      <div className="bg-white p-8 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 flex flex-col md:flex-row items-center gap-8">
-        <div className="size-24 bg-primary/10 rounded-3xl flex items-center justify-center text-primary">
+      <Card className="p-8 flex flex-col md:flex-row items-center gap-8 overflow-hidden hover:scale-[1.01]">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+        <div className="size-24 bg-primary/10 rounded-3xl flex items-center justify-center text-primary relative z-10">
           <UserIcon size={48} strokeWidth={1.5} />
         </div>
-        <div className="text-center md:text-left space-y-2 flex-1">
+        <div className="text-center md:text-left space-y-2 flex-1 relative z-10">
           <h2 className="text-3xl font-black text-slate-800 tracking-tight">
             {user?.user_metadata?.full_name || "Limit User"}
           </h2>
@@ -102,12 +106,12 @@ export default function UserProfile() {
         </div>
         <button
           onClick={handleSignOut}
-          className="bg-rose-50 hover:bg-rose-100 text-rose-500 px-6 py-3 rounded-2xl font-bold flex items-center gap-2 transition-all hover:-translate-y-1"
+          className="bg-rose-50 hover:bg-rose-100 text-rose-500 px-6 py-3.5 rounded-2xl font-bold flex items-center gap-2 transition-all hover:-translate-y-1 relative z-10"
         >
           <LogOut size={18} />
           Sign Out
         </button>
-      </div>
+      </Card>
 
       {/* Settings Sections */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -115,7 +119,7 @@ export default function UserProfile() {
           <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest pl-2">
             Security & Identity
           </h3>
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm divide-y divide-slate-50 overflow-hidden">
+          <Card className="p-0 border-slate-100 overflow-hidden" hover={false}>
             <div className="p-5 flex items-center justify-between hover:bg-slate-50 transition-colors cursor-pointer group">
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-blue-50 text-blue-500 rounded-2xl group-hover:scale-110 transition-transform">
@@ -130,6 +134,7 @@ export default function UserProfile() {
               </div>
               <ChevronRight size={18} className="text-slate-300" />
             </div>
+            <div className="h-px bg-slate-50 w-full" />
             <div className="p-5 flex items-center justify-between hover:bg-slate-50 transition-colors cursor-pointer group">
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-indigo-50 text-indigo-500 rounded-2xl group-hover:scale-110 transition-transform">
@@ -142,14 +147,14 @@ export default function UserProfile() {
               </div>
               <ChevronRight size={18} className="text-slate-300" />
             </div>
-          </div>
+          </Card>
         </div>
 
         <div className="space-y-4">
           <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest pl-2">
             Preferences
           </h3>
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm divide-y divide-slate-50 overflow-hidden">
+          <Card className="p-0 border-slate-100 overflow-hidden" hover={false}>
             <div className="p-5 flex items-center justify-between hover:bg-slate-50 transition-colors cursor-pointer group">
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-amber-50 text-amber-500 rounded-2xl group-hover:scale-110 transition-transform">
@@ -162,7 +167,7 @@ export default function UserProfile() {
               </div>
               <ChevronRight size={18} className="text-slate-300" />
             </div>
-
+            <div className="h-px bg-slate-50 w-full" />
             {/* Preferred Currency Section */}
             <div className="p-5 space-y-4">
               <div className="flex items-center gap-4">
@@ -185,18 +190,19 @@ export default function UserProfile() {
                     key={cur}
                     onClick={() => handleCurrencyChange(cur)}
                     disabled={isUpdating}
-                    className={`h-10 rounded-xl font-bold transition-all border-2 flex items-center justify-center ${
+                    className={cn(
+                      "h-10 rounded-xl font-bold transition-all border-2 flex items-center justify-center",
                       currency === cur
                         ? "bg-primary border-primary text-white shadow-lg shadow-primary/20 scale-110"
-                        : "bg-slate-50 border-transparent text-slate-400 hover:border-slate-200"
-                    }`}
+                        : "bg-slate-50 border-transparent text-slate-400 hover:border-slate-200",
+                    )}
                   >
                     {cur}
                   </button>
                 ))}
               </div>
             </div>
-          </div>
+          </Card>
         </div>
       </div>
     </div>
