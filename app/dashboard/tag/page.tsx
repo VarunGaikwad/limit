@@ -2,6 +2,7 @@
 
 import { useDashboard } from "@/hook";
 import { useEffect, useState } from "react";
+import useSWR from "swr";
 import {
   Plus,
   Coffee,
@@ -18,6 +19,23 @@ import {
   X,
   Edit2,
   Trash2,
+  CreditCard,
+  Wallet,
+  Pizza,
+  Utensils,
+  Dumbbell,
+  Music,
+  Film,
+  Plane,
+  Gift,
+  Heart,
+  Star,
+  Medal,
+  Umbrella,
+  Wind,
+  Sun,
+  Moon,
+  Cloud,
 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
@@ -25,38 +43,63 @@ import { Card, Modal } from "@/components";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
+const ICON_MAP: Record<string, any> = {
+  Tag,
+  Coffee,
+  ShoppingCart,
+  Activity,
+  ShoppingBag,
+  Car,
+  HomeIcon,
+  Smartphone,
+  Zap,
+  Briefcase,
+  CreditCard,
+  Wallet,
+  Pizza,
+  Utensils,
+  Dumbbell,
+  Music,
+  Film,
+  Plane,
+  Gift,
+  Heart,
+  Star,
+  Medal,
+  Umbrella,
+  Wind,
+  Sun,
+  Moon,
+  Cloud,
+};
+
+const ICONS = Object.keys(ICON_MAP);
+
 export default function Category() {
   const { setTitle, setSubtitle, setTopContent, currency } = useDashboard();
   const supabase = createClient();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<any>(null);
-  const [categories, setCategories] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form State
   const [name, setName] = useState("");
   const [type, setType] = useState("expense");
+  const [selectedIcon, setSelectedIcon] = useState("Tag");
 
-  const fetchCategories = async () => {
-    setLoading(true);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (user) {
-      const { data, error } = await supabase
-        .from("categories")
-        .select("*")
-        .order("name", { ascending: true });
-      if (!error && data) setCategories(data);
-    }
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    fetchCategories();
-  }, []);
+  // SWR for Categories
+  const {
+    data: categories = [],
+    isLoading,
+    mutate,
+  } = useSWR("user-categories", async () => {
+    const { data } = await supabase
+      .from("categories")
+      .select("*")
+      .order("name", { ascending: true });
+    return data || [];
+  });
 
   useEffect(() => {
     setTitle("Categories");
@@ -94,9 +137,11 @@ export default function Category() {
     if (cat) {
       setName(cat.name);
       setType(cat.type);
+      setSelectedIcon(cat.icon || "Tag");
     } else {
       setName("");
       setType("expense");
+      setSelectedIcon("Tag");
     }
     setIsModalOpen(true);
   };
@@ -113,6 +158,7 @@ export default function Category() {
     const catData = {
       name,
       type,
+      icon: selectedIcon,
       user_id: user.id,
     };
 
@@ -132,7 +178,7 @@ export default function Category() {
 
     if (!error) {
       setIsModalOpen(false);
-      fetchCategories();
+      mutate();
     }
     setIsSubmitting(false);
   };
@@ -145,12 +191,12 @@ export default function Category() {
     )
       return;
     const { error } = await supabase.from("categories").delete().eq("id", id);
-    if (!error) fetchCategories();
+    if (!error) mutate();
   };
 
   return (
     <>
-      {!loading && categories.length === 0 && (
+      {!isLoading && categories.length === 0 && (
         <div className="col-span-full py-12 text-center bg-white rounded-3xl border border-dashed border-slate-200">
           <p className="text-slate-400 font-medium">
             No custom categories yet. Start organizing!
@@ -172,7 +218,7 @@ export default function Category() {
         }}
         className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
       >
-        {categories.map((cat) => (
+        {categories.map((cat: any) => (
           <motion.div
             key={cat.id}
             variants={{
@@ -190,7 +236,10 @@ export default function Category() {
                       : "bg-emerald-50 text-emerald-500",
                   )}
                 >
-                  <Tag size={24} strokeWidth={2.5} />
+                  {(() => {
+                    const IconComp = ICON_MAP[cat.icon] || Tag;
+                    return <IconComp size={24} strokeWidth={2.5} />;
+                  })()}
                 </div>
                 <div>
                   <h4 className="font-bold text-slate-800 text-lg leading-tight truncate max-w-[120px]">
@@ -266,6 +315,33 @@ export default function Category() {
                 placeholder="e.g. Groceries, Salary"
                 className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
               />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-bold text-slate-700 pl-1 uppercase tracking-wider">
+                Select Icon
+              </label>
+              <div className="grid grid-cols-6 sm:grid-cols-9 gap-2 p-3 bg-slate-50 border border-slate-200 rounded-2xl max-h-[220px] overflow-y-auto custom-scrollbar">
+                {ICONS.map((iconName: string) => {
+                  const IconComp = ICON_MAP[iconName];
+                  const isSelected = selectedIcon === iconName;
+                  return (
+                    <button
+                      key={iconName}
+                      type="button"
+                      onClick={() => setSelectedIcon(iconName)}
+                      className={cn(
+                        "size-10 rounded-xl flex items-center justify-center transition-all",
+                        isSelected
+                          ? "bg-primary text-white shadow-lg shadow-primary/20 scale-110"
+                          : "text-slate-400 hover:text-slate-600 hover:bg-slate-100",
+                      )}
+                    >
+                      <IconComp size={20} strokeWidth={2.5} />
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <div className="space-y-1.5">

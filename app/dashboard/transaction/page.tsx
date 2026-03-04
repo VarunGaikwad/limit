@@ -27,6 +27,26 @@ import {
   ChevronRight,
   WalletIcon,
   Star,
+  Pizza,
+  Utensils,
+  Dumbbell,
+  Music,
+  Film,
+  Plane,
+  Gift,
+  Heart,
+  Medal,
+  Umbrella,
+  Wind,
+  Sun,
+  Moon,
+  Cloud,
+  Home as HomeIcon,
+  Smartphone,
+  Zap,
+  Briefcase,
+  Wallet,
+  Car,
 } from "lucide-react";
 import { Card, Modal } from "@/components";
 import { motion, AnimatePresence } from "framer-motion";
@@ -195,6 +215,36 @@ function MonthSelector({
   );
 }
 
+const ICON_MAP: Record<string, any> = {
+  Tag,
+  Coffee,
+  ShoppingCart,
+  Activity,
+  ShoppingBag,
+  Car,
+  HomeIcon,
+  Smartphone,
+  Zap,
+  Briefcase,
+  CreditCard,
+  Wallet,
+  Pizza,
+  Utensils,
+  Dumbbell,
+  Music,
+  Film,
+  Plane,
+  Gift,
+  Heart,
+  Star,
+  Medal,
+  Umbrella,
+  Wind,
+  Sun,
+  Moon,
+  Cloud,
+};
+
 const FALLBACK_CATEGORIES = [
   { name: "Food & Drink", icon: Coffee },
   { name: "Groceries", icon: ShoppingCart },
@@ -219,6 +269,8 @@ const formatTransactionDate = (dateString: string) => {
     year: "numeric",
   });
 };
+
+const HomeIconComp = (props: any) => <Calendar {...props} />; // Placeholder if HomeIcon not found
 
 export default function Transaction() {
   const { setTitle, setSubtitle, setTopContent, currency } = useDashboard();
@@ -389,8 +441,17 @@ export default function Transaction() {
   };
 
   const getCategoryIcon = (categoryName: string) => {
-    const cat = FALLBACK_CATEGORIES.find((c: any) => c.name === categoryName);
-    return cat ? cat.icon : Tag;
+    // 1. Try to find in custom categories first
+    const customCat = allCategories.find((c: any) => c.name === categoryName);
+    if (customCat && customCat.icon && ICON_MAP[customCat.icon]) {
+      return ICON_MAP[customCat.icon];
+    }
+
+    // 2. Fallback to predefined list
+    const fallbackCat = FALLBACK_CATEGORIES.find(
+      (c: any) => c.name === categoryName,
+    );
+    return fallbackCat ? fallbackCat.icon : Tag;
   };
 
   const groupedTransactions = transactions.reduce(

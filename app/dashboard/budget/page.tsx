@@ -2,6 +2,8 @@
 
 import { useDashboard } from "@/hook";
 import { useEffect, useState } from "react";
+import useSWR from "swr";
+import { createClient } from "@/lib/supabase/client";
 import {
   Plus,
   Target,
@@ -17,7 +19,6 @@ import {
   PieChart,
 } from "lucide-react";
 
-import { createClient } from "@/lib/supabase/client";
 import { Card, Modal } from "@/components";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -49,41 +50,41 @@ export default function Budget() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBudget, setEditingBudget] = useState<any>(null);
-  const [budgets, setBudgets] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Modal State
   const [budgetName, setBudgetName] = useState("");
   const [budgetAmount, setBudgetAmount] = useState("");
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
-  const [allCategories, setAllCategories] = useState<Category[]>([]);
 
-  const fetchData = async () => {
-    setLoading(true);
+  // SWR for Categories
+  const { data: allCategories = [] } = useSWR("user-categories", async () => {
+    const { data } = await supabase
+      .from("categories")
+      .select("id, name")
+      .eq("type", "expense")
+      .order("name", { ascending: true });
+    return data || [];
+  });
+
+  // SWR for Budgets (includes spend calculation)
+  const {
+    data: budgets = [],
+    isLoading,
+    mutate,
+  } = useSWR("user-budgets", async () => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) return [];
 
-    // 1. Fetch Categories
-    const { data: catData } = await supabase
-      .from("categories")
-      .select("id, name")
-      .eq("type", "expense") // Budgets are typically for expenses
-      .order("name", { ascending: true });
-
-    if (catData) {
-      setAllCategories(catData as Category[]);
-    }
-
-    // 2. Fetch Budgets
     const { data: budgetData } = await supabase
       .from("budgets")
       .select("*")
       .order("created_at", { ascending: true });
 
-    // 3. Fetch current month's transactions
+    if (!budgetData) return [];
+
     const now = new Date();
     const startOfMonth = new Date(
       now.getFullYear(),
@@ -104,33 +105,21 @@ export default function Budget() {
       .select("*")
       .gte("date", startOfMonth)
       .lte("date", endOfMonth)
-      .eq("type", "expense"); // Only expenses count towards budget
+      .eq("type", "expense");
 
-    if (budgetData) {
-      // 4. Calculate spent amount for each budget
-      const enrichedBudgets = (budgetData as BudgetData[]).map((b) => {
-        const categoryIds = b.category_ids || [];
-        const spent = ((transData as TransactionData[]) || [])
-          .filter((t: TransactionData) => categoryIds.includes(t.category_id))
-          .reduce(
-            (sum: number, t: TransactionData) => sum + Math.abs(t.amount),
-            0,
-          );
+    return (budgetData as BudgetData[]).map((b) => {
+      const categoryIds = b.category_ids || [];
+      const spent = ((transData as TransactionData[]) || [])
+        .filter((t: any) => categoryIds.includes(t.category_id))
+        .reduce((sum: number, t: any) => sum + Math.abs(t.amount), 0);
 
-        return {
-          ...b,
-          spentAmount: spent,
-          totalAmount: b.amount, // map db 'amount' to UI 'totalAmount'
-        };
-      });
-      setBudgets(enrichedBudgets);
-    }
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
+      return {
+        ...b,
+        spentAmount: spent,
+        totalAmount: b.amount,
+      };
+    });
+  });
 
   useEffect(() => {
     setTitle("Budgets");
@@ -193,8 +182,8 @@ export default function Budget() {
       amount: parseFloat(budgetAmount),
       category_ids: selectedCategoryIds,
       categories: allCategories
-        .filter((c) => selectedCategoryIds.includes(c.id))
-        .map((c) => c.name),
+        .filter((c: any) => selectedCategoryIds.includes(c.id))
+        .map((c: any) => c.name),
       user_id: user.id,
     };
 
@@ -214,7 +203,7 @@ export default function Budget() {
 
     if (!error) {
       closeModal();
-      fetchData();
+      mutate();
     }
     setIsSubmitting(false);
   };
@@ -226,7 +215,7 @@ export default function Budget() {
     const { error } = await supabase.from("budgets").delete().eq("id", id);
 
     if (!error) {
-      fetchData();
+      mutate();
     }
   };
 
@@ -318,7 +307,7 @@ export default function Budget() {
               <Card
                 key={budget.id}
                 className={cn(
-                  "flex flex-col gap-6",
+                  "flex flex-col gap-6 group",
                   isWarning ? "border-rose-200" : "border-slate-100",
                 )}
               >
@@ -473,7 +462,7 @@ export default function Budget() {
               </div>
 
               <div className="grid grid-cols-2 gap-2">
-                {allCategories.map((cat) => {
+                {allCategories.map((cat: any) => {
                   const isSelected = selectedCategoryIds.includes(cat.id);
                   return (
                     <div
