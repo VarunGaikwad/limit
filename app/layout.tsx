@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
 import "./globals.css";
-import { SplashScreen } from "@/components";
+import { SplashScreen, InstallPWA } from "@/components";
 import { QueryProvider } from "@/context";
 
 const poppins = Poppins({
@@ -72,6 +72,7 @@ export default function RootLayout({
       <body className={`${poppins.className} antialiased text-xs`}>
         <QueryProvider>
           <SplashScreen>{children}</SplashScreen>
+          <InstallPWA />
         </QueryProvider>
       </body>
     </html>
