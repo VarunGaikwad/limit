@@ -1,8 +1,9 @@
 "use client";
 
 import { useDashboard } from "@/hook";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import useSWR from "swr";
+import * as LUCIDE_ICON from "lucide-react";
 import {
   Plus,
   Coffee,
@@ -43,50 +44,75 @@ import { Card, Modal } from "@/components";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
-const ICON_MAP: Record<string, any> = {
-  Tag,
-  Coffee,
-  ShoppingCart,
-  Activity,
-  ShoppingBag,
-  Car,
-  HomeIcon,
-  Smartphone,
-  Zap,
-  Briefcase,
-  CreditCard,
-  Wallet,
-  Pizza,
-  Utensils,
-  Dumbbell,
-  Music,
-  Film,
-  Plane,
-  Gift,
-  Heart,
-  Star,
-  Medal,
-  Umbrella,
-  Wind,
-  Sun,
-  Moon,
-  Cloud,
-};
+const ICON_MAP: Record<string, any> = LUCIDE_ICON;
 
-const ICONS = Object.keys(ICON_MAP);
+const FALLBACK_ICONS = [
+  "Tag",
+  "Coffee",
+  "ShoppingCart",
+  "Activity",
+  "ShoppingBag",
+  "Car",
+  "Home",
+  "Smartphone",
+  "Zap",
+  "Briefcase",
+  "Plus",
+  "Edit2",
+  "Trash2",
+  "CreditCard",
+  "Wallet",
+  "Pizza",
+  "Utensils",
+  "Dumbbell",
+  "Music",
+  "Film",
+  "Plane",
+  "Gift",
+  "Heart",
+  "Star",
+  "Medal",
+  "Umbrella",
+  "Wind",
+  "Sun",
+  "Moon",
+  "Cloud",
+];
 
 export default function Category() {
   const { setTitle, setSubtitle, setTopContent, currency } = useDashboard();
   const supabase = createClient();
 
+  const [mounted, setMounted] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Form State
   const [name, setName] = useState("");
   const [type, setType] = useState("expense");
   const [selectedIcon, setSelectedIcon] = useState("Tag");
+  const [iconSearch, setIconSearch] = useState("");
+
+  const allIconsList = useMemo(() => {
+    const dynamicIcons = Object.keys(LUCIDE_ICON).filter(
+      (key) =>
+        /^[A-Z]/.test(key) && key !== "Lucide" && key !== "createLucideIcon",
+    );
+    return dynamicIcons.length > 0 ? dynamicIcons : FALLBACK_ICONS;
+  }, []);
+
+  const filteredIcons = useMemo(() => {
+    const list = allIconsList;
+    if (!iconSearch) return list.slice(0, 100);
+    return list
+      .filter((icon) => icon.toLowerCase().includes(iconSearch.toLowerCase()))
+      .slice(0, 100);
+  }, [iconSearch, allIconsList]);
 
   // SWR for Categories
   const {
@@ -101,11 +127,8 @@ export default function Category() {
     return data || [];
   });
 
-  useEffect(() => {
-    setTitle("Categories");
-    setSubtitle("Manage your transaction tags");
-
-    setTopContent(
+  const memoizedTopContent = useMemo(
+    () => (
       <div className="w-full mt-4 md:mt-2">
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -128,9 +151,16 @@ export default function Category() {
             New Category
           </button>
         </motion.div>
-      </div>,
-    );
-  }, [setTitle, setSubtitle, setTopContent]);
+      </div>
+    ),
+    [],
+  );
+
+  useEffect(() => {
+    setTitle("Categories");
+    setSubtitle("Manage your transaction tags");
+    setTopContent(memoizedTopContent);
+  }, [setTitle, setSubtitle, setTopContent, memoizedTopContent]);
 
   const handleOpenModal = (cat: any = null) => {
     setEditingCategory(cat);
@@ -142,6 +172,7 @@ export default function Category() {
       setName("");
       setType("expense");
       setSelectedIcon("Tag");
+      setIconSearch("");
     }
     setIsModalOpen(true);
   };
@@ -218,80 +249,84 @@ export default function Category() {
         }}
         className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
       >
-        {categories.map((cat: any) => (
-          <motion.div
-            key={cat.id}
-            variants={{
-              hidden: { opacity: 0, scale: 0.95, y: 10 },
-              visible: { opacity: 1, scale: 1, y: 0 },
-            }}
-          >
-            <Card className="flex items-center justify-between p-5 group">
-              <div className="flex items-center gap-4">
-                <div
-                  className={cn(
-                    "size-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110",
-                    cat.type === "expense"
-                      ? "bg-rose-50 text-rose-500"
-                      : "bg-emerald-50 text-emerald-500",
-                  )}
-                >
-                  {(() => {
-                    const IconComp = ICON_MAP[cat.icon] || Tag;
-                    return <IconComp size={24} strokeWidth={2.5} />;
-                  })()}
-                </div>
-                <div>
-                  <h4 className="font-bold text-slate-800 text-lg leading-tight truncate max-w-[120px]">
-                    {cat.name}
-                  </h4>
-                  <p
-                    className={cn(
-                      "text-[10px] font-black uppercase tracking-wider mt-0.5",
-                      cat.type === "expense"
-                        ? "text-rose-400"
-                        : "text-emerald-400",
-                    )}
-                  >
-                    {cat.type}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
-                <button
-                  onClick={() => handleOpenModal(cat)}
-                  className="p-2 text-slate-400 hover:text-primary hover:bg-slate-50 rounded-xl transition-all"
-                >
-                  <Edit2 size={16} strokeWidth={2.5} />
-                </button>
-                <button
-                  onClick={() => handleDeleteCategory(cat.id)}
-                  className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
-                >
-                  <Trash2 size={16} strokeWidth={2.5} />
-                </button>
-              </div>
-            </Card>
-          </motion.div>
-        ))}
-        {/* Add Shortcut Card */}
-        <motion.div
-          variants={{
-            hidden: { opacity: 0, scale: 0.95, y: 10 },
-            visible: { opacity: 1, scale: 1, y: 0 },
-          }}
-        >
-          <button
-            onClick={() => handleOpenModal()}
-            className="w-full h-full border-2 border-dashed border-slate-200 bg-white/50 hover:bg-white p-6 rounded-4xl flex items-center justify-center gap-3 text-slate-400 hover:text-primary hover:border-primary transition-all group shadow-sm hover:shadow-md min-h-20"
-          >
-            <PlusCircle
-              size={22}
-              className="group-hover:scale-110 transition-transform"
-            />
-            <span className="font-bold">Add Category</span>
-          </button>
-        </motion.div>
+        {mounted && (
+          <>
+            {categories.map((cat: any) => (
+              <motion.div
+                key={cat.id}
+                variants={{
+                  hidden: { opacity: 0, scale: 0.95, y: 10 },
+                  visible: { opacity: 1, scale: 1, y: 0 },
+                }}
+              >
+                <Card className="flex items-center justify-between p-5 group">
+                  <div className="flex items-center gap-4">
+                    <div
+                      className={cn(
+                        "size-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110",
+                        cat.type === "expense"
+                          ? "bg-rose-50 text-rose-500"
+                          : "bg-emerald-50 text-emerald-500",
+                      )}
+                    >
+                      {(() => {
+                        const IconComp = ICON_MAP[cat.icon] || Tag;
+                        return <IconComp size={24} strokeWidth={2.5} />;
+                      })()}
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-800 text-lg leading-tight truncate max-w-[120px]">
+                        {cat.name}
+                      </h4>
+                      <p
+                        className={cn(
+                          "text-[10px] font-black uppercase tracking-wider mt-0.5",
+                          cat.type === "expense"
+                            ? "text-rose-400"
+                            : "text-emerald-400",
+                        )}
+                      >
+                        {cat.type}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => handleOpenModal(cat)}
+                      className="p-2 text-slate-400 hover:text-primary hover:bg-slate-50 rounded-xl transition-all"
+                    >
+                      <Edit2 size={16} strokeWidth={2.5} />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteCategory(cat.id)}
+                      className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                    >
+                      <Trash2 size={16} strokeWidth={2.5} />
+                    </button>
+                  </div>
+                </Card>
+              </motion.div>
+            ))}
+            {/* Add Shortcut Card */}
+            <motion.div
+              variants={{
+                hidden: { opacity: 0, scale: 0.95, y: 10 },
+                visible: { opacity: 1, scale: 1, y: 0 },
+              }}
+            >
+              <button
+                onClick={() => handleOpenModal()}
+                className="w-full h-full border-2 border-dashed border-slate-200 bg-white/50 hover:bg-white p-6 rounded-4xl flex items-center justify-center gap-3 text-slate-400 hover:text-primary hover:border-primary transition-all group shadow-sm hover:shadow-md min-h-20"
+              >
+                <PlusCircle
+                  size={22}
+                  className="group-hover:scale-110 transition-transform"
+                />
+                <span className="font-bold">Add Category</span>
+              </button>
+            </motion.div>
+          </>
+        )}
       </motion.div>
 
       {/* Modal */}
@@ -318,12 +353,23 @@ export default function Category() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-sm font-bold text-slate-700 pl-1 uppercase tracking-wider">
-                Select Icon
-              </label>
+              <div className="flex items-center justify-between pl-1">
+                <label className="text-sm font-bold text-slate-700 uppercase tracking-wider">
+                  Select Icon
+                </label>
+                <input
+                  type="text"
+                  placeholder="Search icons..."
+                  value={iconSearch}
+                  onChange={(e) => setIconSearch(e.target.value)}
+                  className="text-[10px] bg-slate-100 border-none rounded-lg px-2 py-1 focus:ring-1 focus:ring-primary outline-none font-bold"
+                />
+              </div>
               <div className="grid grid-cols-6 sm:grid-cols-9 gap-2 p-3 bg-slate-50 border border-slate-200 rounded-2xl max-h-[220px] overflow-y-auto custom-scrollbar">
-                {ICONS.map((iconName: string) => {
-                  const IconComp = ICON_MAP[iconName];
+                {filteredIcons.map((iconName: string) => {
+                  const IconComp =
+                    (LUCIDE_ICON as any)[iconName] ||
+                    (LUCIDE_ICON as any)["Tag"];
                   const isSelected = selectedIcon === iconName;
                   return (
                     <button

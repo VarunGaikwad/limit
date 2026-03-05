@@ -1,7 +1,7 @@
 "use client";
 
 import { useDashboard } from "@/hook";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import {
   Plus,
@@ -46,13 +46,8 @@ export default function Wallet() {
     return data || [];
   });
 
-  useEffect(() => {
-    setTitle("My Wallet");
-    setSubtitle("Manage your accounts and balances");
-
-    const displayWallets = wallets;
-
-    setTopContent(
+  const memoizedTopContent = useMemo(
+    () => (
       <div className="w-full relative overflow-hidden mt-4 md:mt-2">
         <motion.div
           initial={{ opacity: 0, x: 20 }}
@@ -60,7 +55,7 @@ export default function Wallet() {
           className="flex gap-4 md:gap-6 overflow-x-auto pb-6 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden"
           style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
         >
-          {displayWallets.map((wallet: any) => (
+          {wallets.map((wallet: any) => (
             <motion.div
               whileHover={{ scale: 1.02 }}
               key={wallet.id}
@@ -110,9 +105,16 @@ export default function Wallet() {
             <p className="font-semibold">Add New Account</p>
           </motion.div>
         </motion.div>
-      </div>,
-    );
-  }, [setTitle, setSubtitle, setTopContent, wallets, currency]);
+      </div>
+    ),
+    [wallets, currency],
+  );
+
+  useEffect(() => {
+    setTitle("My Wallet");
+    setSubtitle("Manage your accounts and balances");
+    setTopContent(memoizedTopContent);
+  }, [setTitle, setSubtitle, setTopContent, memoizedTopContent]);
 
   async function handleSetPrimary(id: string, e: React.MouseEvent) {
     e.stopPropagation();

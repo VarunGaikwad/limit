@@ -1,7 +1,7 @@
 "use client";
 
 import { useDashboard } from "@/hook";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import useSWR from "swr";
 import { createClient } from "@/lib/supabase/client";
 
@@ -344,6 +344,41 @@ export default function Transaction() {
     },
   );
 
+  // SWR for Title Suggestions
+  const { data: titleHistory = [] } = useSWR("transaction-titles", async () => {
+    const { data } = await supabase
+      .from("transactions")
+      .select("title, category_id, type")
+      .order("created_at", { ascending: false });
+
+    // Group by title to find the most frequent/recent category and type
+    const suggestionsMap = new Map();
+    data?.forEach((t: any) => {
+      const lowerTitle = t.title.trim().toLowerCase();
+      if (!suggestionsMap.has(lowerTitle)) {
+        suggestionsMap.set(lowerTitle, {
+          originalTitle: t.title,
+          categoryId: t.category_id,
+          type: t.type,
+        });
+      }
+    });
+
+    return Array.from(suggestionsMap.values());
+  });
+
+  const suggestions = useMemo(() => {
+    if (!title || title.length < 1 || editingTransaction) return [];
+    const search = title.toLowerCase().trim();
+    return titleHistory
+      .filter(
+        (item) =>
+          item.originalTitle.toLowerCase().includes(search) &&
+          item.originalTitle.toLowerCase() !== title.toLowerCase().trim(),
+      )
+      .slice(0, 5);
+  }, [title, titleHistory, editingTransaction]);
+
   // Set default wallet when wallets load or modal opens
   useEffect(() => {
     if (!walletId && allWallets.length > 0) {
@@ -454,30 +489,32 @@ export default function Transaction() {
     return fallbackCat ? fallbackCat.icon : Tag;
   };
 
-  const groupedTransactions = transactions.reduce(
-    (groups: any, transaction: any) => {
-      const dateLabel = formatTransactionDate(transaction.date);
-      if (!groups[dateLabel]) {
-        groups[dateLabel] = [];
-      }
+  const groupedTransactions = useMemo(() => {
+    return transactions.reduce(
+      (groups: any, transaction: any) => {
+        const dateLabel = formatTransactionDate(transaction.date);
+        if (!groups[dateLabel]) {
+          groups[dateLabel] = [];
+        }
 
-      // Enrich with wallet name for display
-      const enrichedTransaction = {
-        ...transaction,
-        walletName:
-          allWallets.find((w: any) => w.id === transaction.wallet_id)?.name ||
-          "Unknown Wallet",
-      };
+        // Enrich with wallet name for display
+        const enrichedTransaction = {
+          ...transaction,
+          walletName:
+            allWallets.find((w: any) => w.id === transaction.wallet_id)?.name ||
+            "Unknown Wallet",
+        };
 
-      groups[dateLabel].push(enrichedTransaction);
-      return groups;
-    },
-    {} as Record<string, any[]>,
-  );
+        groups[dateLabel].push(enrichedTransaction);
+        return groups;
+      },
+      {} as Record<string, any[]>,
+    );
+  }, [transactions, allWallets]);
 
   const filteredCategories = allCategories.filter((c: any) => c.type === type);
 
-  const calculateSummary = () => {
+  const { income, expense } = useMemo(() => {
     return transactions.reduce(
       (acc: any, t: any) => {
         const amount = parseFloat(t.amount);
@@ -490,17 +527,11 @@ export default function Transaction() {
       },
       { income: 0, expense: 0 },
     );
-  };
-
-  const { income, expense } = calculateSummary();
+  }, [transactions]);
   const balance = income - expense;
 
-  useEffect(() => {
-    setTitle("Transactions");
-    setSubtitle(
-      `Manage your transactions for ${MONTH_NAMES[selectedPeriod.monthIndex]} ${selectedPeriod.year}`,
-    );
-    setTopContent(
+  const memoizedTopContent = useMemo(
+    () => (
       <div className="w-full mt-4 md:mt-2 space-y-6">
         <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center bg-white p-6 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
           <div>
@@ -579,26 +610,24 @@ export default function Transaction() {
           selected={selectedPeriod}
           setSelected={setSelectedPeriod}
         />
-      </div>,
+      </div>
+    ),
+    [selectedPeriod, income, expense, balance, currency],
+  );
+
+  useEffect(() => {
+    setTitle("Transactions");
+    setSubtitle(
+      `Manage your transactions for ${MONTH_NAMES[selectedPeriod.monthIndex]} ${selectedPeriod.year}`,
     );
+    setTopContent(memoizedTopContent);
   }, [
     setTitle,
     setSubtitle,
     setTopContent,
     selectedPeriod,
-    income,
-    expense,
-    balance,
-    currency,
+    memoizedTopContent,
   ]);
-
-  useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeModal();
-    };
-    window.addEventListener("keydown", handleEsc);
-    return () => window.removeEventListener("keydown", handleEsc);
-  }, []);
 
   return (
     <>
@@ -755,13 +784,55 @@ export default function Transaction() {
               <label className="text-sm font-bold text-slate-700 pl-1 uppercase tracking-wider">
                 Title
               </label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitleInput(e.target.value)}
-                placeholder="e.g. Weekly Groceries"
-                className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitleInput(e.target.value)}
+                  placeholder="e.g. Weekly Groceries"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+                />
+                <AnimatePresence>
+                  {suggestions.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="absolute left-0 right-0 top-full mt-2 bg-white rounded-2xl shadow-xl border border-slate-100 z-[110] overflow-hidden"
+                    >
+                      {suggestions.map((s, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => {
+                            setTitleInput(s.originalTitle);
+                            setCategoryId(s.categoryId);
+                            setType(s.type);
+                          }}
+                          className="w-full px-5 py-3.5 text-left hover:bg-slate-50 flex items-center justify-between group transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            <PlusCircle
+                              size={16}
+                              className="text-slate-300 group-hover:text-primary transition-colors"
+                            />
+                            <span className="font-bold text-slate-700">
+                              {s.originalTitle}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-black uppercase text-slate-400 bg-slate-100 px-2 py-1 rounded-md">
+                              {s.type}
+                            </span>
+                            <span className="text-[10px] font-black uppercase text-primary bg-primary/10 px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity">
+                              Select
+                            </span>
+                          </div>
+                        </button>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

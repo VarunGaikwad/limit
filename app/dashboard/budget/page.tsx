@@ -1,7 +1,7 @@
 "use client";
 
 import { useDashboard } from "@/hook";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import useSWR from "swr";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -48,9 +48,14 @@ export default function Budget() {
   const { setTitle, setSubtitle, setTopContent, currency } = useDashboard();
   const supabase = createClient();
 
+  const [mounted, setMounted] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBudget, setEditingBudget] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Modal State
   const [budgetName, setBudgetName] = useState("");
@@ -121,11 +126,8 @@ export default function Budget() {
     });
   });
 
-  useEffect(() => {
-    setTitle("Budgets");
-    setSubtitle("Track your spending limits");
-
-    setTopContent(
+  const memoizedTopContent = useMemo(
+    () => (
       <div className="w-full mt-4 md:mt-2">
         <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center bg-white p-6 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
           <div>
@@ -144,9 +146,16 @@ export default function Budget() {
             New Budget
           </button>
         </div>
-      </div>,
-    );
-  }, [setTitle, setSubtitle, setTopContent]);
+      </div>
+    ),
+    [],
+  );
+
+  useEffect(() => {
+    setTitle("Budgets");
+    setSubtitle("Track your spending limits");
+    setTopContent(memoizedTopContent);
+  }, [setTitle, setSubtitle, setTopContent, memoizedTopContent]);
 
   const handleOpenModal = (budget: any = null) => {
     setEditingBudget(budget);
@@ -228,13 +237,6 @@ export default function Budget() {
   };
 
   // Handle ESC key to close modal
-  useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeModal();
-    };
-    window.addEventListener("keydown", handleEsc);
-    return () => window.removeEventListener("keydown", handleEsc);
-  }, []);
 
   const getBudgetStyle = (budgetCategories: string[]) => {
     const styles = [
@@ -292,125 +294,127 @@ export default function Budget() {
         className="space-y-6 pb-20"
       >
         {/* Budgets Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-          {budgets.map((budget) => {
-            const percentage = Math.min(
-              (budget.spentAmount / budget.totalAmount) * 100,
-              100,
-            );
-            const isWarning = percentage >= 90;
-            const remaining = budget.totalAmount - budget.spentAmount;
-            const style = getBudgetStyle(budget.categories);
-            const Icon = style.icon;
+        {mounted && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+            {budgets.map((budget) => {
+              const percentage = Math.min(
+                (budget.spentAmount / budget.totalAmount) * 100,
+                100,
+              );
+              const isWarning = percentage >= 90;
+              const remaining = budget.totalAmount - budget.spentAmount;
+              const style = getBudgetStyle(budget.categories);
+              const Icon = style.icon;
 
-            return (
-              <Card
-                key={budget.id}
-                className={cn(
-                  "flex flex-col gap-6 group",
-                  isWarning ? "border-rose-200" : "border-slate-100",
-                )}
-              >
-                {/* Header */}
-                <div className="flex justify-between items-start z-10">
-                  <div className="flex items-center gap-4">
-                    <div
-                      className={`p-4 rounded-[1.25rem] flex items-center justify-center ${style.bg} ${style.color}`}
-                    >
-                      <Icon size={26} strokeWidth={2.5} />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-slate-800 text-xl leading-tight">
-                        {budget.name}
-                      </h4>
-                      <p className="text-sm font-semibold text-slate-400 mt-1">
-                        {currency}
-                        {budget.spentAmount.toLocaleString()} of {currency}
-                        {budget.totalAmount.toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-1 sm:gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300">
-                    <button
-                      onClick={() => handleOpenModal(budget)}
-                      className="p-2 sm:p-2.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-xl transition-colors"
-                    >
-                      <Edit2 size={18} strokeWidth={2.5} />
-                    </button>
-                    <button
-                      onClick={(e) => handleDeleteBudget(budget.id, e)}
-                      className="p-2 sm:p-2.5 text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-colors"
-                    >
-                      <Trash2 size={18} strokeWidth={2.5} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Progress Bar */}
-                <div className="space-y-3 z-10">
-                  <div className="flex justify-between items-end">
-                    <span
-                      className={`text-sm font-bold ${isWarning ? "text-rose-500" : "text-slate-500"}`}
-                    >
-                      {remaining >= 0
-                        ? `${currency}${remaining.toLocaleString()} left`
-                        : `-${currency}${Math.abs(remaining).toLocaleString()} over`}
-                    </span>
-                    <span className="text-xs font-bold text-slate-400">
-                      {percentage.toFixed(0)}%
-                    </span>
-                  </div>
-                  <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${percentage}%` }}
-                      transition={{ duration: 1.5, ease: "easeOut" }}
-                      className={`h-full rounded-full ${isWarning ? "bg-rose-500" : style.fill}`}
-                    />
-                  </div>
-                </div>
-
-                {/* Categories Chips */}
-                <div className="pt-5 border-t border-slate-100/80 z-10">
-                  <div className="flex flex-wrap gap-2">
-                    {budget.categories.map((cat: string) => (
-                      <span
-                        key={cat}
-                        className="px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-500 text-[10px] font-bold rounded-lg tracking-wide uppercase"
+              return (
+                <Card
+                  key={budget.id}
+                  className={cn(
+                    "flex flex-col gap-6 group",
+                    isWarning ? "border-rose-200" : "border-slate-100",
+                  )}
+                >
+                  {/* Header */}
+                  <div className="flex justify-between items-start z-10">
+                    <div className="flex items-center gap-4">
+                      <div
+                        className={`p-4 rounded-[1.25rem] flex items-center justify-center ${style.bg} ${style.color}`}
                       >
-                        {cat}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </Card>
-            );
-          })}
+                        <Icon size={26} strokeWidth={2.5} />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-slate-800 text-xl leading-tight">
+                          {budget.name}
+                        </h4>
+                        <p className="text-sm font-semibold text-slate-400 mt-1">
+                          {currency}
+                          {budget.spentAmount.toLocaleString()} of {currency}
+                          {budget.totalAmount.toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
 
-          {/* Add Budget Card */}
-          <Card
-            onClick={() => handleOpenModal()}
-            className="border-2 border-dashed border-slate-200 bg-slate-50/50 hover:bg-white flex flex-col items-center justify-center gap-4 text-slate-400 group min-h-70"
-          >
-            <div className="p-4 rounded-[1.25rem] flex items-center justify-center bg-transparent group-hover:bg-primary/10 transition-colors">
-              <PlusCircle
-                size={36}
-                className="group-hover:scale-110 transition-transform text-slate-300 group-hover:text-primary"
-                strokeWidth={2}
-              />
-            </div>
-            <div className="text-center">
-              <h4 className="font-bold text-xl text-slate-600 group-hover:text-primary transition-colors">
-                Create New Budget
-              </h4>
-              <p className="text-sm font-medium mt-1">
-                Group multiple categories under one limit
-              </p>
-            </div>
-          </Card>
-        </div>
+                    {/* Actions */}
+                    <div className="flex items-center gap-1 sm:gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300">
+                      <button
+                        onClick={() => handleOpenModal(budget)}
+                        className="p-2 sm:p-2.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-xl transition-colors"
+                      >
+                        <Edit2 size={18} strokeWidth={2.5} />
+                      </button>
+                      <button
+                        onClick={(e) => handleDeleteBudget(budget.id, e)}
+                        className="p-2 sm:p-2.5 text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-colors"
+                      >
+                        <Trash2 size={18} strokeWidth={2.5} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Progress Bar */}
+                  <div className="space-y-3 z-10">
+                    <div className="flex justify-between items-end">
+                      <span
+                        className={`text-sm font-bold ${isWarning ? "text-rose-500" : "text-slate-500"}`}
+                      >
+                        {remaining >= 0
+                          ? `${currency}${remaining.toLocaleString()} left`
+                          : `-${currency}${Math.abs(remaining).toLocaleString()} over`}
+                      </span>
+                      <span className="text-xs font-bold text-slate-400">
+                        {percentage.toFixed(0)}%
+                      </span>
+                    </div>
+                    <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${percentage}%` }}
+                        transition={{ duration: 1.5, ease: "easeOut" }}
+                        className={`h-full rounded-full ${isWarning ? "bg-rose-500" : style.fill}`}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Categories Chips */}
+                  <div className="pt-5 border-t border-slate-100/80 z-10">
+                    <div className="flex flex-wrap gap-2">
+                      {budget.categories.map((cat: string) => (
+                        <span
+                          key={cat}
+                          className="px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-500 text-[10px] font-bold rounded-lg tracking-wide uppercase"
+                        >
+                          {cat}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </Card>
+              );
+            })}
+
+            {/* Add Budget Card */}
+            <Card
+              onClick={() => handleOpenModal()}
+              className="border-2 border-dashed border-slate-200 bg-slate-50/50 hover:bg-white flex flex-col items-center justify-center gap-4 text-slate-400 group min-h-70"
+            >
+              <div className="p-4 rounded-[1.25rem] flex items-center justify-center bg-transparent group-hover:bg-primary/10 transition-colors">
+                <PlusCircle
+                  size={36}
+                  className="group-hover:scale-110 transition-transform text-slate-300 group-hover:text-primary"
+                  strokeWidth={2}
+                />
+              </div>
+              <div className="text-center">
+                <h4 className="font-bold text-xl text-slate-600 group-hover:text-primary transition-colors">
+                  Create New Budget
+                </h4>
+                <p className="text-sm font-medium mt-1">
+                  Group multiple categories under one limit
+                </p>
+              </div>
+            </Card>
+          </div>
+        )}
       </motion.div>
 
       <Modal
