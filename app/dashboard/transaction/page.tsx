@@ -2,8 +2,9 @@
 
 import { useDashboard } from "@/hook";
 import { useEffect, useState, useRef, useMemo } from "react";
-import useSWR from "swr";
+import useSWR, { useSWRConfig } from "swr";
 import { createClient } from "@/lib/supabase/client";
+import { WifiOff, RefreshCcw } from "lucide-react";
 
 import {
   Activity,
@@ -284,6 +285,57 @@ export default function Transaction() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
+
+  const { mutate: globalMutate } = useSWRConfig();
+
+  // Monitor online status
+  useEffect(() => {
+    setIsOnline(navigator.onLine);
+    const handleOnline = () => {
+      setIsOnline(true);
+      syncPendingTransactions();
+    };
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  const syncPendingTransactions = async () => {
+    const pending = JSON.parse(
+      localStorage.getItem("pending-transactions") || "[]",
+    );
+    if (pending.length === 0) return;
+
+    setIsSyncing(true);
+    let successCount = 0;
+
+    for (const t of pending) {
+      const { error } = await supabase.from("transactions").insert(t);
+      if (!error) successCount++;
+    }
+
+    if (successCount === pending.length) {
+      localStorage.setItem("pending-transactions", "[]");
+    } else {
+      // Keep only failed ones (not common)
+      const freshPending = pending.slice(successCount);
+      localStorage.setItem(
+        "pending-transactions",
+        JSON.stringify(freshPending),
+      );
+    }
+
+    mutateTransactions();
+    mutateWallets();
+    setIsSyncing(false);
+  };
 
   // Form State
   const [title, setTitleInput] = useState("");
@@ -392,34 +444,63 @@ export default function Transaction() {
     if (!title || !amount || !walletId || !categoryId) return;
     setIsSubmitting(true);
 
-    const transactionData = {
+    const transactionData: any = {
       title,
       amount: parseFloat(amount),
-      category_id: categoryId, // Using ID now
-      category: allCategories.find((c: any) => c.id === categoryId)?.name || "", // Keep name as fallback for now
+      category_id: categoryId,
+      category: allCategories.find((c: any) => c.id === categoryId)?.name || "",
       type,
       date,
       wallet_id: walletId,
     };
 
-    let error;
-    if (editingTransaction) {
-      const { error: updateError } = await supabase
-        .from("transactions")
-        .update(transactionData)
-        .eq("id", editingTransaction.id);
-      error = updateError;
-    } else {
-      const { error: insertError } = await supabase
-        .from("transactions")
-        .insert(transactionData);
-      error = insertError;
-    }
+    if (isOnline) {
+      let error;
+      if (editingTransaction) {
+        const { error: updateError } = await supabase
+          .from("transactions")
+          .update(transactionData)
+          .eq("id", editingTransaction.id);
+        error = updateError;
+      } else {
+        const { error: insertError } = await supabase
+          .from("transactions")
+          .insert(transactionData);
+        error = insertError;
+      }
 
-    if (!error) {
+      if (!error) {
+        closeModal();
+        mutateTransactions();
+        mutateWallets();
+      }
+    } else {
+      // HANDLING OFFLINE
+      const offlineTransaction = {
+        ...transactionData,
+        id: `offline-${Date.now()}`,
+        isPending: true,
+      };
+
+      const pending = JSON.parse(
+        localStorage.getItem("pending-transactions") || "[]",
+      );
+      // We don't support editing offline transactions as easily yet, so we just treat them as new
+      pending.push(transactionData);
+      localStorage.setItem("pending-transactions", JSON.stringify(pending));
+
+      // Optimistically update the list
+      const optimisticTransactions = [offlineTransaction, ...transactions];
+      globalMutate(
+        ["transactions", selectedPeriod.year, selectedPeriod.monthIndex],
+        optimisticTransactions,
+        false,
+      );
+
       closeModal();
-      mutateTransactions();
-      mutateWallets(); // Refresh balances
+      alert(
+        "You are offline. Transaction recorded locally and will sync when online! 💾",
+      );
     }
     setIsSubmitting(false);
   };
@@ -533,6 +614,29 @@ export default function Transaction() {
   const memoizedTopContent = useMemo(
     () => (
       <div className="w-full mt-4 md:mt-2 space-y-6">
+        {!isOnline && (
+          <div className="bg-amber-50 border border-amber-200 p-4 rounded-3xl flex items-center justify-between text-amber-700 animate-pulse">
+            <div className="flex items-center gap-3">
+              <WifiOff size={20} />
+              <span className="font-bold text-sm">
+                Offline Mode: Using Local Storage
+              </span>
+            </div>
+            <span className="text-[10px] font-black uppercase tracking-tighter">
+              Read Only Syncing
+            </span>
+          </div>
+        )}
+
+        {isSyncing && (
+          <div className="bg-primary/10 border border-primary/20 p-4 rounded-3xl flex items-center gap-3 text-primary">
+            <RefreshCcw size={20} className="animate-spin" />
+            <span className="font-bold text-sm">
+              Syncing legacy records to cloud...
+            </span>
+          </div>
+        )}
+
         <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center bg-white p-6 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
           <div>
             <h3 className="text-2xl font-bold text-slate-800 tracking-tight">
@@ -694,8 +798,14 @@ export default function Transaction() {
                             <Icon size={24} strokeWidth={2.5} />
                           </div>
                           <div>
-                            <h4 className="font-bold text-slate-800 text-base sm:text-lg leading-tight">
+                            <h4 className="font-bold text-slate-800 text-base sm:text-lg leading-tight flex items-center gap-2">
                               {t.title}
+                              {t.isPending && (
+                                <RefreshCcw
+                                  size={14}
+                                  className="text-amber-500 animate-spin"
+                                />
+                              )}
                             </h4>
                             <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-0.5">
                               {t.category}
@@ -710,6 +820,7 @@ export default function Transaction() {
                               t.type === "income"
                                 ? "text-primary font-bold"
                                 : "text-slate-800 font-bold",
+                              t.isPending && "opacity-50",
                             )}
                           >
                             <div className="text-lg sm:text-xl tracking-tight leading-none">
