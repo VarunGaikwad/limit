@@ -5,21 +5,26 @@ import { useEffect } from "react";
 
 export function QueryProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
-    if ("serviceWorker" in navigator) {
-      window.addEventListener("load", function () {
-        navigator.serviceWorker.register("/sw.js").then(
-          function (registration) {
-            console.log(
-              "Service Worker registration successful with scope: ",
-              registration.scope,
-            );
-          },
-          function (err) {
-            console.log("Service Worker registration failed: ", err);
-          },
-        );
-      });
+    const registerSW = () => {
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker
+          .register("/sw.js")
+          .then((registration) => {
+            console.log("SW registered:", registration.scope);
+          })
+          .catch((err) => {
+            console.log("SW registration failed:", err);
+          });
+      }
+    };
+
+    if (document.readyState === "complete") {
+      registerSW();
+    } else {
+      window.addEventListener("load", registerSW);
     }
+
+    return () => window.removeEventListener("load", registerSW);
   }, []);
 
   return (
@@ -30,26 +35,37 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
         dedupingInterval: 5000,
         provider: () => {
           // Initialize SWR cache from localStorage if possible
-          const map = new Map();
-          if (typeof window !== "undefined") {
-            try {
-              const cached = localStorage.getItem("swr-cache");
-              if (cached) {
-                const parsed = JSON.parse(cached);
-                Object.entries(parsed).forEach(([key, value]) =>
-                  map.set(key, value),
-                );
-              }
-            } catch (e) {
-              console.error("Could not load cache", e);
-            }
+          if (typeof window === "undefined") return new Map();
 
-            // Sync cache to localStorage on update
-            window.addEventListener("beforeunload", () => {
-              const appCache = Object.fromEntries(map.entries());
-              localStorage.setItem("swr-cache", JSON.stringify(appCache));
-            });
+          const localStorageKey = "swr-cache-v1";
+          let initialData = {};
+          try {
+            const cached = localStorage.getItem(localStorageKey);
+            if (cached) {
+              initialData = JSON.parse(cached);
+            }
+          } catch (e) {
+            console.error("Could not parse swr-cache", e);
           }
+
+          const map = new Map(Object.entries(initialData));
+
+          // Proxy set and delete to persistence
+          const originalSet = map.set.bind(map);
+          const originalDelete = map.delete.bind(map);
+
+          map.set = (key, value) => {
+            const result = originalSet(key, value);
+            persistCache(map, localStorageKey);
+            return result;
+          };
+
+          map.delete = (key) => {
+            const result = originalDelete(key);
+            persistCache(map, localStorageKey);
+            return result;
+          };
+
           return map;
         },
       }}
@@ -57,4 +73,15 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
       {children}
     </SWRConfig>
   );
+}
+
+function persistCache(map: Map<any, any>, key: string) {
+  if (typeof window === "undefined") return;
+  // Use a small delay/throttle if updates are very frequent, but for simple app its fine
+  try {
+    const data = Object.fromEntries(map.entries());
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch (e) {
+    console.error("Could not persist swr-cache", e);
+  }
 }

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Poppins } from "next/font/google";
 import "./globals.css";
 import { SplashScreen, InstallPWA } from "@/components";
@@ -9,6 +9,10 @@ const poppins = Poppins({
   variable: "--font-poppins",
   subsets: ["latin"],
 });
+
+export const viewport: Viewport = {
+  themeColor: "#00d09e",
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://yourdomain.com"),
@@ -23,7 +27,6 @@ export const metadata: Metadata = {
     },
   ],
   manifest: "/manifest.json",
-  themeColor: "#00d09e",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
