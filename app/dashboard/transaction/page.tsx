@@ -271,9 +271,39 @@ const formatTransactionDate = (dateString: string) => {
   });
 };
 
+const formatTransactionTime = (dateString: string) => {
+  const date = new Date(dateString);
+  const hours = date.getHours();
+  const minutes = date.getMinutes();
+
+  // If it's midnight, we might not want to show it if it was a legacy date-only record
+  // but for new ones we usually want it.
+  return date.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+};
+
+const getLocalDatetimeString = (date: Date = new Date()) => {
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  const y = date.getFullYear();
+  const m = pad(date.getMonth() + 1);
+  const d = pad(date.getDate());
+  const h = pad(date.getHours());
+  const min = pad(date.getMinutes());
+  return `${y}-${m}-${d}T${h}:${min}`;
+};
+
 const HomeIconComp = (props: any) => <Calendar {...props} />; // Placeholder if HomeIcon not found
 
 export default function Transaction() {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const { setTitle, setSubtitle, setTopContent, currency } = useDashboard();
   const supabase = createClient();
 
@@ -342,9 +372,7 @@ export default function Transaction() {
   const [amount, setAmount] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [type, setType] = useState<"expense" | "income">("expense");
-  const [date, setDate] = useState(
-    () => new Date().toISOString().split("T")[0],
-  );
+  const [date, setDate] = useState(() => getLocalDatetimeString());
   const [walletId, setWalletId] = useState("");
 
   // SWR for Wallets
@@ -531,7 +559,7 @@ export default function Transaction() {
       setTitleInput("");
       setAmount("");
       setType("expense");
-      setDate(new Date().toISOString().split("T")[0]);
+      setDate(getLocalDatetimeString());
       // Default to primary wallet
       const primary = allWallets.find((w: any) => w.is_primary);
       if (primary) setWalletId(primary.id);
@@ -553,7 +581,7 @@ export default function Transaction() {
     setAmount("");
     setCategoryId("");
     setType("expense");
-    setDate(new Date().toISOString().split("T")[0]);
+    setDate(getLocalDatetimeString());
   };
 
   const getCategoryIcon = (categoryName: string) => {
@@ -749,7 +777,7 @@ export default function Transaction() {
         }}
         className="flex flex-col gap-6"
       >
-        {isLoading ? (
+        {isLoading || !mounted ? (
           <div className="flex flex-col gap-4">
             {[1, 2, 3].map((i) => (
               <div
@@ -807,8 +835,10 @@ export default function Transaction() {
                                 />
                               )}
                             </h4>
-                            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+                            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-0.5 flex items-center gap-2">
                               {t.category}
+                              <span className="inline-block w-1 h-1 rounded-full bg-slate-300" />
+                              {mounted ? formatTransactionTime(t.date) : ""}
                             </p>
                           </div>
                         </div>
@@ -975,7 +1005,7 @@ export default function Transaction() {
                     className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
                   />
                   <input
-                    type="date"
+                    type="datetime-local"
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-10 pr-5 py-3.5 text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all appearance-none"

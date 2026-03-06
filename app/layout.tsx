@@ -15,11 +15,12 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://yourdomain.com"),
+  metadataBase: new URL("https://limit-rust.vercel.app"),
   title: "Limit - Smart Budget & Expense Tracker",
   description:
     "A powerful yet simple budget tracking app to monitor expenses, control spending, and improve financial discipline.",
   applicationName: "Limit",
+  icons: "/icon.png",
   authors: [
     {
       name: "Varun Gaikwad",
@@ -43,11 +44,11 @@ export const metadata: Metadata = {
     title: "Limit - Smart Budget & Expense Tracker",
     description:
       "Track expenses, manage money, and build better financial habits.",
-    url: "https://yourdomain.com",
+    url: "https://limit-rust.vercel.app",
     siteName: "Limit",
     images: [
       {
-        url: "/og-image.png",
+        url: "/icon.png",
         width: 1200,
         height: 630,
         alt: "Limit Budget Tracking App",

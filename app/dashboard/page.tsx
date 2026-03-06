@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 
 export default function Dashboard() {
   const { setTitle, setSubtitle, setTopContent, currency } = useDashboard();
+  const [mounted, setMounted] = useState(false);
   const [currentMenu, setCurrentMenu] = useState("All");
   const supabase = createClient();
 
@@ -99,6 +100,10 @@ export default function Dashboard() {
     if (currentMenu === "All") return true;
     return t.type.toLowerCase() === currentMenu.toLowerCase();
   });
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const hours = new Date().getHours();
@@ -224,7 +229,7 @@ export default function Dashboard() {
         }}
         className="grid grid-cols-1 gap-4"
       >
-        {transLoading ? (
+        {transLoading || !mounted ? (
           <div className="flex items-center justify-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           </div>
@@ -258,7 +263,8 @@ export default function Dashboard() {
                       {t.title}
                     </h4>
                     <p className="text-xs sm:text-sm text-slate-500 font-medium">
-                      {t.category} • {new Date(t.date).toLocaleDateString()}
+                      {t.category} •{" "}
+                      {mounted ? new Date(t.date).toLocaleDateString() : ""}
                     </p>
                   </div>
                 </div>

@@ -25,7 +25,12 @@ export default function Wallet() {
   const { mutate: globalMutate } = useSWRConfig();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingWallet, setEditingWallet] = useState<any>(null);
+  const [mounted, setMounted] = useState(false);
   const supabase = createClient();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Unified fetcher for Wallets using SWR
   const {
@@ -308,94 +313,104 @@ export default function Wallet() {
             }}
             className="space-y-3"
           >
-            {wallets.length === 0 && !isLoading && (
+            {isLoading || !mounted ? (
+              <div className="flex flex-col gap-4">
+                {[1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className="h-24 w-full bg-slate-100 animate-pulse rounded-3xl"
+                  />
+                ))}
+              </div>
+            ) : wallets.length === 0 ? (
               <div className="text-center py-12 bg-white rounded-3xl border border-dashed border-slate-200">
                 <p className="text-slate-400 font-medium">
                   No accounts found. Add one to get started!
                 </p>
               </div>
-            )}
-            {wallets.map((acc: any) => (
-              <motion.div
-                variants={{
-                  hidden: { opacity: 0, y: 10 },
-                  visible: { opacity: 1, y: 0 },
-                }}
-                key={acc.id}
-              >
-                <Card
-                  className={cn(
-                    "flex items-center justify-between p-4 sm:p-5 transition-all duration-300",
-                    acc.is_primary &&
-                      "border-primary shadow-[0_8px_30px_rgba(0,208,158,0.12)]",
-                  )}
+            ) : (
+              wallets.map((acc: any) => (
+                <motion.div
+                  variants={{
+                    hidden: { opacity: 0, y: 10 },
+                    visible: { opacity: 1, y: 0 },
+                  }}
+                  key={acc.id}
                 >
-                  <div className="flex items-center gap-4">
-                    <div
-                      className={cn(
-                        "p-3.5 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 border",
-                        acc.is_primary
-                          ? "bg-primary/10 text-primary border-primary/20"
-                          : "bg-slate-50 text-slate-600 border-slate-100",
-                      )}
-                    >
-                      <Landmark size={22} strokeWidth={2.5} />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-slate-800 text-base sm:text-lg">
-                          {acc.name}
-                        </h4>
-                        {acc.is_primary && (
-                          <span className="bg-primary/10 text-primary text-[10px] font-black uppercase tracking-tighter px-2 py-0.5 rounded-md">
-                            Primary
-                          </span>
+                  <Card
+                    className={cn(
+                      "flex items-center justify-between p-4 sm:p-5 transition-all duration-300",
+                      acc.is_primary &&
+                        "border-primary shadow-[0_8px_30px_rgba(0,208,158,0.12)]",
+                    )}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div
+                        className={cn(
+                          "p-3.5 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 border",
+                          acc.is_primary
+                            ? "bg-primary/10 text-primary border-primary/20"
+                            : "bg-slate-50 text-slate-600 border-slate-100",
                         )}
+                      >
+                        <Landmark size={22} strokeWidth={2.5} />
                       </div>
-                      <p className="text-xs sm:text-sm text-slate-500 font-medium uppercase tracking-wider">
-                        {acc.type}
-                      </p>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-bold text-slate-800 text-base sm:text-lg">
+                            {acc.name}
+                          </h4>
+                          {acc.is_primary && (
+                            <span className="bg-primary/10 text-primary text-[10px] font-black uppercase tracking-tighter px-2 py-0.5 rounded-md">
+                              Primary
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs sm:text-sm text-slate-500 font-medium uppercase tracking-wider">
+                          {acc.type}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="font-bold text-lg sm:text-xl tracking-tight text-slate-800 text-right">
-                      {currency}
-                      {acc.balance.toLocaleString(undefined, {
-                        minimumFractionDigits: 2,
-                      })}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenModal(acc);
-                        }}
-                        className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-xl transition-all"
-                        title="Edit Account"
-                      >
-                        <Edit2 size={18} strokeWidth={2.5} />
-                      </button>
-                      {!acc.is_primary && (
+                    <div className="flex items-center gap-4">
+                      <div className="font-bold text-lg sm:text-xl tracking-tight text-slate-800 text-right">
+                        {currency}
+                        {acc.balance.toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                        })}
+                      </div>
+                      <div className="flex items-center gap-1">
                         <button
-                          onClick={(e) => handleSetPrimary(acc.id, e)}
-                          className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded-xl transition-all"
-                          title="Set as Primary"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenModal(acc);
+                          }}
+                          className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-xl transition-all"
+                          title="Edit Account"
                         >
-                          <Star size={18} strokeWidth={2.5} />
+                          <Edit2 size={18} strokeWidth={2.5} />
                         </button>
-                      )}
-                      <button
-                        onClick={(e) => handleDeleteAccount(acc.id, e)}
-                        className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
-                        title="Delete Account"
-                      >
-                        <Trash2 size={18} strokeWidth={2.5} />
-                      </button>
+                        {!acc.is_primary && (
+                          <button
+                            onClick={(e) => handleSetPrimary(acc.id, e)}
+                            className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded-xl transition-all"
+                            title="Set as Primary"
+                          >
+                            <Star size={18} strokeWidth={2.5} />
+                          </button>
+                        )}
+                        <button
+                          onClick={(e) => handleDeleteAccount(acc.id, e)}
+                          className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                          title="Delete Account"
+                        >
+                          <Trash2 size={18} strokeWidth={2.5} />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                </Card>
-              </motion.div>
-            ))}
+                  </Card>
+                </motion.div>
+              ))
+            )}
           </motion.div>
         </section>
       </div>
